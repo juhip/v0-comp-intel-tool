@@ -128,7 +128,7 @@ export default function CompanyIntelligenceDashboard() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">Company Intelligence Dashboard</h1>
-          <p className="text-muted-foreground">Powered by Parallel.ai web intelligence with OpenAI fallback</p>
+          <p className="text-muted-foreground">Powered by Parallel.ai web intelligence</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setShowSetupGuide(true)}>

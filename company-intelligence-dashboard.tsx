@@ -5,24 +5,23 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CompanySearchForm } from "./components/company-search-form"
 import { CompanyIntelligenceDisplay } from "./components/company-intelligence-display"
 import { CompetitiveAnalysisDisplay } from "./components/competitive-analysis-display"
-import { ParallelApiTester } from "./components/parallel-api-tester"
-import { LiveApiTest } from "./components/live-api-test"
 import { fetchCompanyIntel, fetchCompetitiveAnalysis } from "./services/parallel-api"
 import type { CompanySearchResult } from "./types/company"
 import { Button } from "@/components/ui/button"
 import { Download, RefreshCw } from "lucide-react"
 import { toast } from "sonner"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Info } from "lucide-react"
+import { Info, CheckCircle } from "lucide-react"
 import { ApiSetupGuide } from "./components/api-setup-guide"
 import { Settings } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 
 export default function CompanyIntelligenceDashboard() {
   const [currentCompany, setCurrentCompany] = useState<CompanySearchResult | null>(null)
   const [competitiveData, setCompetitiveData] = useState<any>(null)
   const [competitiveLoading, setCompetitiveLoading] = useState(false)
   const [competitiveError, setCompetitiveError] = useState<string | undefined>()
-  const [activeTab, setActiveTab] = useState("live-test")
+  const [activeTab, setActiveTab] = useState("company-intel")
   const [showSetupGuide, setShowSetupGuide] = useState(false)
 
   const searchCompany = useCallback(async (companyName: string) => {
@@ -120,7 +119,10 @@ export default function CompanyIntelligenceDashboard() {
     }
   }, [currentCompany, competitiveData])
 
-  const hasApiKeys = !!(process.env.PARALLEL_API_KEY || process.env.OPENAI_API_KEY)
+  const hasOpenAI = !!process.env.OPENAI_API_KEY
+  const hasXAI = !!process.env.XAI_API_KEY
+  const hasParallel = !!process.env.PARALLEL_API_KEY
+  const hasAnyApi = hasOpenAI || hasXAI || hasParallel
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -149,12 +151,40 @@ export default function CompanyIntelligenceDashboard() {
         </div>
       </div>
 
-      {hasApiKeys && (
+      {/* API Status Display */}
+      <div className="flex gap-2 flex-wrap">
+        <Badge variant={hasOpenAI ? "default" : "secondary"} className="flex items-center gap-1">
+          {hasOpenAI && <CheckCircle className="h-3 w-3" />}
+          OpenAI {hasOpenAI ? "✓" : "✗"}
+        </Badge>
+        <Badge variant={hasXAI ? "default" : "secondary"} className="flex items-center gap-1">
+          {hasXAI && <CheckCircle className="h-3 w-3" />}
+          xAI {hasXAI ? "✓" : "✗"}
+        </Badge>
+        <Badge variant={hasParallel ? "default" : "secondary"} className="flex items-center gap-1">
+          {hasParallel && <CheckCircle className="h-3 w-3" />}
+          Parallel.ai {hasParallel ? "✓" : "✗"}
+        </Badge>
+      </div>
+
+      {hasAnyApi ? (
         <Alert className="border-green-200 bg-green-50">
           <Info className="h-4 w-4 text-green-600" />
           <AlertDescription>
-            <strong>Live Mode:</strong> Both Parallel.ai and OpenAI APIs are configured and ready for real-time data
-            extraction.
+            <strong>Live Mode:</strong> {hasOpenAI && "OpenAI"}
+            {hasXAI && (hasOpenAI ? ", xAI" : "xAI")}
+            {hasParallel && (hasOpenAI || hasXAI ? ", and Parallel.ai" : "Parallel.ai")} API
+            {(hasOpenAI && hasXAI) || (hasOpenAI && hasParallel) || (hasXAI && hasParallel) ? "s are" : " is"}{" "}
+            configured for real-time analysis.
+          </AlertDescription>
+        </Alert>
+      ) : (
+        <Alert className="border-orange-200 bg-orange-50">
+          <Info className="h-4 w-4 text-orange-600" />
+          <AlertDescription>
+            <strong>Demo Mode:</strong> No API keys configured. The dashboard will show comprehensive sample data.
+            <br />
+            <span className="text-sm">Configure OpenAI, xAI, or Parallel.ai for real-time data extraction.</span>
           </AlertDescription>
         </Alert>
       )}
@@ -170,16 +200,10 @@ export default function CompanyIntelligenceDashboard() {
       <CompanySearchForm onSearchCompany={searchCompany} isLoading={currentCompany?.loading || false} />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="live-test">Live API Test</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="company-intel">Company Intelligence</TabsTrigger>
           <TabsTrigger value="competitive-intel">Competitive Intelligence</TabsTrigger>
-          <TabsTrigger value="api-tester">API Tester</TabsTrigger>
         </TabsList>
-
-        <TabsContent value="live-test" className="space-y-6">
-          <LiveApiTest />
-        </TabsContent>
 
         <TabsContent value="company-intel" className="space-y-6">
           <CompanyIntelligenceDisplay company={currentCompany} />
@@ -198,10 +222,6 @@ export default function CompanyIntelligenceDashboard() {
               </div>
             )}
           <CompetitiveAnalysisDisplay data={competitiveData} loading={competitiveLoading} error={competitiveError} />
-        </TabsContent>
-
-        <TabsContent value="api-tester" className="space-y-6">
-          <ParallelApiTester />
         </TabsContent>
       </Tabs>
     </div>

@@ -1,105 +1,117 @@
 import type { CompanyIntel } from "../types/company"
 import { fetchCompanyIntelFromOpenAI, fetchCompetitiveAnalysisFromOpenAI } from "./openai-fallback"
+import { fetchCompanyIntelFromXAI, fetchCompetitiveAnalysisFromXAI } from "./xai-integration"
 
 const PARALLEL_API_KEY = process.env.PARALLEL_API_KEY || ""
 const PARALLEL_API_URL = "https://api.parallel.ai/v1/tasks/runs"
 
 export async function fetchCompanyIntel(companyName: string): Promise<CompanyIntel> {
-  // Try parallel.ai first, then fallback to OpenAI, then to sample data
+  // Try multiple APIs in order: OpenAI, xAI, Parallel.ai, then sample data
+
+  // Try OpenAI first (most reliable)
+  try {
+    if (process.env.OPENAI_API_KEY) {
+      console.log("Trying OpenAI API...")
+      return await fetchCompanyIntelFromOpenAI(companyName)
+    }
+  } catch (error) {
+    console.log("OpenAI failed, trying xAI:", error)
+  }
+
+  // Try xAI second
+  try {
+    if (process.env.XAI_API_KEY) {
+      console.log("Trying xAI API...")
+      return await fetchCompanyIntelFromXAI(companyName)
+    }
+  } catch (error) {
+    console.log("xAI failed, trying Parallel.ai:", error)
+  }
+
+  // Try Parallel.ai third
   try {
     if (PARALLEL_API_KEY) {
+      console.log("Trying Parallel.ai API...")
       return await fetchCompanyIntelFromParallelAI(companyName)
     }
   } catch (error) {
-    console.log("Parallel.ai failed, trying OpenAI fallback:", error)
-  }
-
-  // Fallback to OpenAI
-  try {
-    return await fetchCompanyIntelFromOpenAI(companyName)
-  } catch (error) {
-    console.log("OpenAI fallback failed, using sample data:", error)
+    console.log("Parallel.ai failed, using sample data:", error)
   }
 
   // Final fallback to sample data
+  console.log("All APIs failed, using sample data")
   return getSampleCompanyData(companyName)
 }
 
 export async function fetchCompetitiveAnalysis(companyName: string): Promise<any> {
-  // Try parallel.ai first, then fallback to OpenAI, then to sample data
+  // Try multiple APIs in order: OpenAI, xAI, Parallel.ai, then sample data
+
+  // Try OpenAI first
+  try {
+    if (process.env.OPENAI_API_KEY) {
+      console.log("Trying OpenAI competitive analysis...")
+      return await fetchCompetitiveAnalysisFromOpenAI(companyName)
+    }
+  } catch (error) {
+    console.log("OpenAI competitive analysis failed, trying xAI:", error)
+  }
+
+  // Try xAI second
+  try {
+    if (process.env.XAI_API_KEY) {
+      console.log("Trying xAI competitive analysis...")
+      return await fetchCompetitiveAnalysisFromXAI(companyName)
+    }
+  } catch (error) {
+    console.log("xAI competitive analysis failed, trying Parallel.ai:", error)
+  }
+
+  // Try Parallel.ai third
   try {
     if (PARALLEL_API_KEY) {
+      console.log("Trying Parallel.ai competitive analysis...")
       return await fetchCompetitiveAnalysisFromParallelAI(companyName)
     }
   } catch (error) {
-    console.log("Parallel.ai competitive analysis failed, trying OpenAI fallback:", error)
-  }
-
-  // Fallback to OpenAI
-  try {
-    return await fetchCompetitiveAnalysisFromOpenAI(companyName)
-  } catch (error) {
-    console.log("OpenAI competitive analysis fallback failed, using sample data:", error)
+    console.log("Parallel.ai competitive analysis failed, using sample data:", error)
   }
 
   // Final fallback to sample data
+  console.log("All competitive analysis APIs failed, using sample data")
   return getSampleCompetitiveData(companyName)
 }
 
 async function fetchCompanyIntelFromParallelAI(companyName: string): Promise<CompanyIntel> {
   const taskSpec = {
-    output_schema: "The founding date of the company in the format MM-YYYY",
-    input: `Provide comprehensive company intelligence for ${companyName}. Include all available information about:
-
-BASIC INFORMATION:
-- Company name and overview
-- Location (headquarters and major offices)
-- One-liner description of what the company does
-- Position/title in the market
-- Industry classification
-- Number of employees
-
-FINANCIAL INFORMATION:
-- Funding history and current funding status
-- Company valuation
-- Revenue figures
-- Profit margins
-
-LEADERSHIP & ORGANIZATION:
-- Chairman/CEO name and background
-- Key leadership team members
-- Recent deals and partnerships
-- Major investors and stakeholders
-
-PRODUCTS & SERVICES:
-- Company offerings and main products/services
-- Vision and mission statements
-- Core company values
-- Brands and services offered
-- Product/service categories
-- New products or services launched recently
-- Future priorities and roadmap
-
-MARKET PRESENCE:
-- Number of customers/user base
-- Geographic presence and markets served
-- Main competitors and competitive landscape
-
-STRATEGIC ANALYSIS:
-- Point of view on the company's market position
-- Unique characteristics and differentiators
-- Key strengths and competitive advantages
-- Weaknesses and challenges
-- Important business metrics
-- Market opportunities
-- Potential threats and risks
-- Strategic insights and analysis
-
-PRODUCT EVALUATION:
-- Products/services that are well-regarded or liked
-- Products/services that need improvement or have issues
-
-Please provide this information in a structured format that can be easily parsed.`,
+    output_schema: {
+      type: "object",
+      properties: {
+        company_name: { type: "string" },
+        location: { type: "string" },
+        industry: { type: "string" },
+        description: { type: "string" },
+        ceo: { type: "string" },
+        employees: { type: "string" },
+        revenue: { type: "string" },
+        founded: { type: "string" },
+        competitors: { type: "array", items: { type: "string" } },
+        products: { type: "array", items: { type: "string" } },
+        recent_news: { type: "array", items: { type: "string" } },
+      },
+    },
+    input: `Extract comprehensive information about ${companyName}. Include:
+    - Company name and basic details
+    - Location and headquarters
+    - Industry and business description  
+    - CEO and leadership
+    - Number of employees
+    - Revenue information
+    - Founded date
+    - Main competitors
+    - Key products/services
+    - Recent news or developments
+    
+    Please provide accurate, up-to-date information from reliable sources.`,
     processor: "base",
   }
 
@@ -319,45 +331,6 @@ function extractCompetitors(text: string): any[] {
       threat_level: "Medium",
     },
   ]
-}
-
-function processTaskResult(result: any, companyName: string): CompanyIntel {
-  return {
-    companyName,
-    location: result.location || "N/A",
-    oneLiner: result.oneLiner || "N/A",
-    positionTitle: result.positionTitle || "N/A",
-    industry: result.industry || "N/A",
-    numberOfEmployees: result.numberOfEmployees || "N/A",
-    funding: result.funding || "N/A",
-    valuation: result.valuation || "N/A",
-    chairmanCEO: result.chairman_ceo || "N/A",
-    leadership: result.leadership || [],
-    latestDeals: result.latest_deals || [],
-    investors: result.investors || [],
-    companyOfferings: result.company_offerings || [],
-    visionMission: result.vision_mission || "N/A",
-    values: result.values || [],
-    brandsServices: result.brands_services_offered || [],
-    productServiceCategories: result.product_service_categories || [],
-    newProducts: result.new_products_services || [],
-    futurePriorities: result.future_priorities || [],
-    numberOfCustomers: result.number_of_customers || "N/A",
-    geographiesOfPresence: result.geographies_of_presence || [],
-    competitors: result.competitors || [],
-    revenue: result.revenue || "N/A",
-    margin: result.margin || "N/A",
-    povOnCompany: result.pov_on_company || "N/A",
-    uniqueCharacteristics: result.unique_characteristics || [],
-    strengths: result.strengths || [],
-    weaknesses: result.weaknesses || [],
-    metrics: result.metrics || [],
-    opportunities: result.opportunities || [],
-    threats: result.threats || [],
-    insights: result.insights || [],
-    productsServicesLiked: result.products_services_you_like || [],
-    productsServicesToImprove: result.products_services_to_improve || [],
-  }
 }
 
 function getSampleCompanyData(companyName: string): CompanyIntel {

@@ -37,7 +37,7 @@ export default function CompanyIntelligenceDashboard() {
     setCompetitiveError(undefined)
 
     try {
-      toast.info(`Analyzing ${companyName}. This may take a few moments...`)
+      toast.info(`Analyzing ${companyName} with Parallel.ai. This may take a few moments...`)
 
       const companyData = await fetchCompanyIntel(companyName)
 
@@ -74,7 +74,7 @@ export default function CompanyIntelligenceDashboard() {
     setCompetitiveError(undefined)
 
     try {
-      toast.info(`Loading competitive analysis for ${companyName}...`)
+      toast.info(`Loading competitive analysis for ${companyName} with Parallel.ai...`)
 
       const competitiveAnalysis = await fetchCompetitiveAnalysis(companyName)
       setCompetitiveData(competitiveAnalysis)
@@ -119,17 +119,16 @@ export default function CompanyIntelligenceDashboard() {
     }
   }, [currentCompany, competitiveData])
 
-  const hasOpenAI = !!process.env.OPENAI_API_KEY
-  const hasXAI = !!process.env.XAI_API_KEY
   const hasParallel = !!process.env.PARALLEL_API_KEY
-  const hasAnyApi = hasOpenAI || hasXAI || hasParallel
+  const hasOpenAI = !!process.env.OPENAI_API_KEY
+  const hasAnyApi = hasParallel || hasOpenAI
 
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">Company Intelligence Dashboard</h1>
-          <p className="text-muted-foreground">Comprehensive business intelligence with competitive analysis</p>
+          <p className="text-muted-foreground">Powered by Parallel.ai web intelligence with OpenAI fallback</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setShowSetupGuide(true)}>
@@ -153,17 +152,17 @@ export default function CompanyIntelligenceDashboard() {
 
       {/* API Status Display */}
       <div className="flex gap-2 flex-wrap">
-        <Badge variant={hasOpenAI ? "default" : "secondary"} className="flex items-center gap-1">
-          {hasOpenAI && <CheckCircle className="h-3 w-3" />}
-          OpenAI {hasOpenAI ? "✓" : "✗"}
-        </Badge>
-        <Badge variant={hasXAI ? "default" : "secondary"} className="flex items-center gap-1">
-          {hasXAI && <CheckCircle className="h-3 w-3" />}
-          xAI {hasXAI ? "✓" : "✗"}
-        </Badge>
         <Badge variant={hasParallel ? "default" : "secondary"} className="flex items-center gap-1">
           {hasParallel && <CheckCircle className="h-3 w-3" />}
-          Parallel.ai {hasParallel ? "✓" : "✗"}
+          Parallel.ai {hasParallel ? "✓ PRIMARY" : "✗"}
+        </Badge>
+        <Badge variant={hasOpenAI ? "default" : "secondary"} className="flex items-center gap-1">
+          {hasOpenAI && <CheckCircle className="h-3 w-3" />}
+          OpenAI {hasOpenAI ? "✓ FALLBACK" : "✗"}
+        </Badge>
+        <Badge variant="outline" className="flex items-center gap-1">
+          <CheckCircle className="h-3 w-3" />
+          Sample Data ✓ DEMO
         </Badge>
       </div>
 
@@ -171,11 +170,9 @@ export default function CompanyIntelligenceDashboard() {
         <Alert className="border-green-200 bg-green-50">
           <Info className="h-4 w-4 text-green-600" />
           <AlertDescription>
-            <strong>Live Mode:</strong> {hasOpenAI && "OpenAI"}
-            {hasXAI && (hasOpenAI ? ", xAI" : "xAI")}
-            {hasParallel && (hasOpenAI || hasXAI ? ", and Parallel.ai" : "Parallel.ai")} API
-            {(hasOpenAI && hasXAI) || (hasOpenAI && hasParallel) || (hasXAI && hasParallel) ? "s are" : " is"}{" "}
-            configured for real-time analysis.
+            <strong>Live Mode:</strong> {hasParallel && "Parallel.ai (PRIMARY)"}
+            {hasOpenAI && (hasParallel ? " → OpenAI (FALLBACK)" : "OpenAI (FALLBACK)")} → Sample Data configured for
+            real-time web intelligence.
           </AlertDescription>
         </Alert>
       ) : (
@@ -184,7 +181,7 @@ export default function CompanyIntelligenceDashboard() {
           <AlertDescription>
             <strong>Demo Mode:</strong> No API keys configured. The dashboard will show comprehensive sample data.
             <br />
-            <span className="text-sm">Configure OpenAI, xAI, or Parallel.ai for real-time data extraction.</span>
+            <span className="text-sm">Configure Parallel.ai (primary) or OpenAI (fallback) for real-time data.</span>
           </AlertDescription>
         </Alert>
       )}

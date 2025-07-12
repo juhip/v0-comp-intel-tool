@@ -192,78 +192,8 @@ export function ParallelApiTester() {
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Database className="h-5 w-5" />
-            Parallel.ai API Tester
-          </CardTitle>
-          <div className="flex gap-2">
-            <Badge variant={hasApiKey ? "default" : "secondary"} className="flex items-center gap-1">
-              {hasApiKey ? <CheckCircle className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
-              API Key: {hasApiKey ? `${process.env.PARALLEL_API_KEY?.slice(0, 8)}...` : "Not Set"}
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {!hasApiKey && (
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                Parallel.ai API key not configured. Set PARALLEL_API_KEY environment variable to test real data
-                extraction.
-              </AlertDescription>
-            </Alert>
-          )}
-
-          <div className="flex gap-4 items-end">
-            <div className="flex-1">
-              <label htmlFor="test-company" className="block text-sm font-medium mb-2">
-                Company to Test
-              </label>
-              <Input
-                id="test-company"
-                value={testCompany}
-                onChange={(e) => setTestCompany(e.target.value)}
-                placeholder="Enter company name"
-                disabled={isLoading}
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button
-                onClick={() => testParallelAI("company")}
-                disabled={!hasApiKey || isLoading}
-                className="flex items-center gap-2"
-              >
-                {isLoading && activeTest === "company" ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Zap className="h-4 w-4" />
-                )}
-                Test Company Intel
-              </Button>
-              <Button
-                onClick={() => testParallelAI("competitive")}
-                disabled={!hasApiKey || isLoading}
-                variant="outline"
-                className="flex items-center gap-2"
-              >
-                {isLoading && activeTest === "competitive" ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Play className="h-4 w-4" />
-                )}
-                Test Competitive Analysis
-              </Button>
-            </div>
-          </div>
-
-          {error && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-        </CardContent>
+        
+        
       </Card>
 
       {testResults && (

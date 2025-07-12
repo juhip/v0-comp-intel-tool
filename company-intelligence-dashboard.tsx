@@ -6,6 +6,7 @@ import { CompanySearchForm } from "./components/company-search-form"
 import { CompanyIntelligenceDisplay } from "./components/company-intelligence-display"
 import { CompetitiveAnalysisDisplay } from "./components/competitive-analysis-display"
 import { ParallelApiTester } from "./components/parallel-api-tester"
+import { LiveApiTest } from "./components/live-api-test"
 import { fetchCompanyIntel, fetchCompetitiveAnalysis } from "./services/parallel-api"
 import type { CompanySearchResult } from "./types/company"
 import { Button } from "@/components/ui/button"
@@ -21,7 +22,7 @@ export default function CompanyIntelligenceDashboard() {
   const [competitiveData, setCompetitiveData] = useState<any>(null)
   const [competitiveLoading, setCompetitiveLoading] = useState(false)
   const [competitiveError, setCompetitiveError] = useState<string | undefined>()
-  const [activeTab, setActiveTab] = useState("company-intel")
+  const [activeTab, setActiveTab] = useState("live-test")
   const [showSetupGuide, setShowSetupGuide] = useState(false)
 
   const searchCompany = useCallback(async (companyName: string) => {
@@ -169,11 +170,16 @@ export default function CompanyIntelligenceDashboard() {
       <CompanySearchForm onSearchCompany={searchCompany} isLoading={currentCompany?.loading || false} />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="live-test">Live API Test</TabsTrigger>
           <TabsTrigger value="company-intel">Company Intelligence</TabsTrigger>
           <TabsTrigger value="competitive-intel">Competitive Intelligence</TabsTrigger>
           <TabsTrigger value="api-tester">API Tester</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="live-test" className="space-y-6">
+          <LiveApiTest />
+        </TabsContent>
 
         <TabsContent value="company-intel" className="space-y-6">
           <CompanyIntelligenceDisplay company={currentCompany} />

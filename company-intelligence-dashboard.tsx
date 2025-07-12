@@ -160,10 +160,7 @@ export default function CompanyIntelligenceDashboard() {
           {hasOpenAI && <CheckCircle className="h-3 w-3" />}
           OpenAI {hasOpenAI ? "✓ FALLBACK" : "✗"}
         </Badge>
-        <Badge variant="outline" className="flex items-center gap-1">
-          <CheckCircle className="h-3 w-3" />
-          Sample Data ✓ DEMO
-        </Badge>
+        
       </div>
 
       {hasAnyApi ? (

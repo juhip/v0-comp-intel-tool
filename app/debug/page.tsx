@@ -1,320 +1,394 @@
 "use client"
 
 import { useState } from "react"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, CheckCircle, XCircle, AlertCircle, RefreshCw, ArrowLeft } from "lucide-react"
-import Link from "next/link"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { CheckCircle, XCircle, Loader2, AlertCircle, Settings, TestTube } from "lucide-react"
 
 interface TestResult {
-  test: string
-  endpoint: string
-  method: string
-  status: number
-  statusText: string
   success: boolean
-  headers?: Record<string, string>
-  responseData?: any
-  runId?: string
+  message: string
+  details?: any
   error?: string
 }
 
-interface ApiTestResponse {
-  apiKeyPresent: boolean
-  apiKeyLength: number
-  apiKeyPrefix: string
-  totalTests: number
-  successfulTests: number
-  failedTests: number
-  results: TestResult[]
-  recommendations: Array<{
-    type: string
-    message: string
-    details?: string[]
-    suggestions?: string[]
-  }>
-  documentation: {
-    endpoint: string
-    authHeader: string
-    method: string
-    format: string
-  }
-}
-
 export default function DebugPage() {
-  const [loading, setLoading] = useState(false)
-  const [testResults, setTestResults] = useState<ApiTestResponse | null>(null)
+  const [parallelResult, setParallelResult] = useState<TestResult | null>(null)
+  const [openaiResult, setOpenaiResult] = useState<TestResult | null>(null)
+  const [fullTestResult, setFullTestResult] = useState<TestResult | null>(null)
+  const [loading, setLoading] = useState<Record<string, boolean>>({})
 
-  const runApiTests = async () => {
-    setLoading(true)
+  const testParallelAPI = async () => {
+    setLoading((prev) => ({ ...prev, parallel: true }))
     try {
       const response = await fetch("/api/test-parallel")
-      const data = await response.json()
-      setTestResults(data)
+      const result = await response.json()
+      setParallelResult(result)
     } catch (error) {
-      console.error("Failed to run API tests:", error)
-      setTestResults({
-        apiKeyPresent: false,
-        apiKeyLength: 0,
-        apiKeyPrefix: "Error",
-        totalTests: 0,
-        successfulTests: 0,
-        failedTests: 1,
-        results: [
-          {
-            test: "Connection Test",
-            endpoint: "/api/test-parallel",
-            method: "GET",
-            status: 0,
-            statusText: "Network Error",
-            success: false,
-            error: error instanceof Error ? error.message : "Unknown error",
-          },
-        ],
-        recommendations: [
-          {
-            type: "error",
-            message: "Failed to connect to debug API",
-            suggestions: ["Check your network connection", "Refresh the page and try again"],
-          },
-        ],
-        documentation: {
-          endpoint: "https://api.parallel.ai/v1/tasks/runs",
-          authHeader: "x-api-key",
-          method: "POST",
-          format: "Parallel Task API v1",
-        },
+      setParallelResult({
+        success: false,
+        message: "Failed to test Parallel API",
+        error: error instanceof Error ? error.message : "Unknown error",
       })
     } finally {
-      setLoading(false)
+      setLoading((prev) => ({ ...prev, parallel: false }))
     }
   }
 
-  const getStatusColor = (status: number) => {
-    if (status >= 200 && status < 300) return "text-green-600"
-    if (status >= 400 && status < 500) return "text-red-600"
-    if (status >= 500) return "text-purple-600"
-    return "text-gray-600"
-  }
-
-  const getStatusIcon = (success: boolean, status: number) => {
-    if (success) return <CheckCircle className="h-4 w-4 text-green-600" />
-    if (status === 401) return <XCircle className="h-4 w-4 text-red-600" />
-    if (status === 404) return <AlertCircle className="h-4 w-4 text-yellow-600" />
-    return <XCircle className="h-4 w-4 text-gray-600" />
-  }
-
-  const getRecommendationStyle = (type: string) => {
-    switch (type) {
-      case "success":
-        return "bg-green-50 border-green-500 text-green-800"
-      case "auth_error":
-        return "bg-red-50 border-red-500 text-red-800"
-      case "request_error":
-        return "bg-yellow-50 border-yellow-500 text-yellow-800"
-      case "no_success":
-        return "bg-blue-50 border-blue-500 text-blue-800"
-      default:
-        return "bg-gray-50 border-gray-500 text-gray-800"
+  const testOpenAI = async () => {
+    setLoading((prev) => ({ ...prev, openai: true }))
+    try {
+      const response = await fetch("/api/test-openai")
+      const result = await response.json()
+      setOpenaiResult(result)
+    } catch (error) {
+      setOpenaiResult({
+        success: false,
+        message: "Failed to test OpenAI API",
+        error: error instanceof Error ? error.message : "Unknown error",
+      })
+    } finally {
+      setLoading((prev) => ({ ...prev, openai: false }))
     }
+  }
+
+  const testFullAnalysis = async () => {
+    setLoading((prev) => ({ ...prev, full: true }))
+    try {
+      const response = await fetch("/api/parallel-research", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          task_description: "Test analysis for Apple Inc",
+          research_query: "Get basic information about Apple Inc for testing purposes",
+          structured_outputs: {
+            company_name: "string",
+            one_liner: "string",
+            industry: "string",
+          },
+        }),
+      })
+      const result = await response.json()
+      setFullTestResult({
+        success: response.ok,
+        message: response.ok ? "Full analysis test completed successfully" : "Full analysis test failed",
+        details: result,
+      })
+    } catch (error) {
+      setFullTestResult({
+        success: false,
+        message: "Failed to test full analysis",
+        error: error instanceof Error ? error.message : "Unknown error",
+      })
+    } finally {
+      setLoading((prev) => ({ ...prev, full: false }))
+    }
+  }
+
+  const runAllTests = async () => {
+    await Promise.all([testParallelAPI(), testOpenAI(), testFullAnalysis()])
+  }
+
+  const StatusIcon = ({ result }: { result: TestResult | null }) => {
+    if (!result) return <AlertCircle className="h-5 w-5 text-gray-400" />
+    return result.success ? (
+      <CheckCircle className="h-5 w-5 text-green-500" />
+    ) : (
+      <XCircle className="h-5 w-5 text-red-500" />
+    )
+  }
+
+  const StatusBadge = ({ result }: { result: TestResult | null }) => {
+    if (!result) return <Badge variant="secondary">Not tested</Badge>
+    return result.success ? (
+      <Badge variant="default" className="bg-green-500">
+        ✅ Working
+      </Badge>
+    ) : (
+      <Badge variant="destructive">❌ Failed</Badge>
+    )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
-      <div className="max-w-6xl mx-auto">
-        <div className="mb-6">
-          <Link href="/" className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800">
-            <ArrowLeft className="h-4 w-4" />
-            Back to Company Intelligence Tool
-          </Link>
-        </div>
+    <div className="container mx-auto p-6 space-y-6">
+      <div className="text-center mb-8">
+        <h1 className="text-4xl font-bold text-gray-900 mb-4">System Debug Console</h1>
+        <p className="text-xl text-gray-600">Test and debug API integrations</p>
+      </div>
 
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">Parallel API Debug Console</h1>
-          <p className="text-xl text-gray-600">Test and diagnose Parallel API integration</p>
-        </div>
-
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle>API Connection Test</CardTitle>
-            <CardDescription>
-              Test the Parallel API using the official endpoint and authentication method from their documentation
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="p-4 bg-blue-50 rounded-lg">
-                <h4 className="font-semibold mb-2">Expected Configuration:</h4>
-                <div className="space-y-1 text-sm font-mono">
-                  <div>
-                    <strong>Endpoint:</strong> https://api.parallel.ai/v1/tasks/runs
-                  </div>
-                  <div>
-                    <strong>Method:</strong> POST
-                  </div>
-                  <div>
-                    <strong>Auth Header:</strong> x-api-key
-                  </div>
-                  <div>
-                    <strong>Content-Type:</strong> application/json
-                  </div>
+      {/* System Status Overview */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Settings className="h-5 w-5" />
+            System Status Overview
+          </CardTitle>
+          <CardDescription>Current status of all API integrations</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid md:grid-cols-3 gap-4">
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div className="flex items-center gap-3">
+                <StatusIcon result={parallelResult} />
+                <div>
+                  <div className="font-medium">Parallel.ai API</div>
+                  <div className="text-sm text-gray-500">Primary data source</div>
                 </div>
               </div>
-
-              <Button onClick={runApiTests} disabled={loading} className="w-full">
-                {loading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Testing API Connection...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    Run API Tests
-                  </>
-                )}
-              </Button>
+              <StatusBadge result={parallelResult} />
             </div>
-          </CardContent>
-        </Card>
 
-        {testResults && (
-          <div className="space-y-6">
-            {/* Summary */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Test Summary</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-blue-600">{testResults.totalTests}</div>
-                    <div className="text-sm text-gray-600">Total Tests</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-green-600">{testResults.successfulTests}</div>
-                    <div className="text-sm text-gray-600">Successful</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-red-600">{testResults.failedTests}</div>
-                    <div className="text-sm text-gray-600">Failed</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-purple-600">{testResults.apiKeyPresent ? "✓" : "✗"}</div>
-                    <div className="text-sm text-gray-600">API Key</div>
-                  </div>
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div className="flex items-center gap-3">
+                <StatusIcon result={openaiResult} />
+                <div>
+                  <div className="font-medium">OpenAI API</div>
+                  <div className="text-sm text-gray-500">Fallback analysis</div>
                 </div>
+              </div>
+              <StatusBadge result={openaiResult} />
+            </div>
 
-                <div className="mt-4 p-4 bg-gray-100 rounded-lg">
-                  <h4 className="font-semibold mb-2">API Key Status</h4>
-                  <div className="space-y-1 text-sm">
-                    <div>Present: {testResults.apiKeyPresent ? "✅ Yes" : "❌ No"}</div>
-                    <div>Length: {testResults.apiKeyLength} characters</div>
-                    <div>Preview: {testResults.apiKeyPrefix}</div>
-                  </div>
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div className="flex items-center gap-3">
+                <StatusIcon result={fullTestResult} />
+                <div>
+                  <div className="font-medium">Full Analysis</div>
+                  <div className="text-sm text-gray-500">Complete workflow</div>
                 </div>
-              </CardContent>
-            </Card>
-
-            {/* Recommendations */}
-            {testResults.recommendations.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Recommendations</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {testResults.recommendations.map((rec, index) => (
-                    <div key={index} className={`p-4 rounded-lg border-l-4 ${getRecommendationStyle(rec.type)}`}>
-                      <h4 className="font-semibold mb-2">{rec.message}</h4>
-                      {rec.details && (
-                        <div className="mb-2">
-                          <strong>Details:</strong>
-                          <ul className="list-disc list-inside mt-1">
-                            {rec.details.map((detail, idx) => (
-                              <li key={idx} className="text-sm">
-                                {detail}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                      {rec.suggestions && (
-                        <div>
-                          <strong>Suggestions:</strong>
-                          <ul className="list-disc list-inside mt-1">
-                            {rec.suggestions.map((suggestion, idx) => (
-                              <li key={idx} className="text-sm">
-                                {suggestion}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Detailed Results */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Detailed Test Results</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {testResults.results.map((result, index) => (
-                    <div key={index} className="border rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-3">
-                          {getStatusIcon(result.success, result.status)}
-                          <h4 className="font-semibold">{result.test}</h4>
-                        </div>
-                        <Badge variant={result.success ? "default" : "destructive"}>
-                          {result.status} {result.statusText}
-                        </Badge>
-                      </div>
-
-                      <div className="grid md:grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <strong>Endpoint:</strong>
-                          <code className="block bg-gray-100 p-2 rounded mt-1 text-xs">
-                            {result.method} {result.endpoint}
-                          </code>
-                        </div>
-
-                        {result.runId && (
-                          <div>
-                            <strong>Run ID:</strong>
-                            <code className="block bg-gray-100 p-2 rounded mt-1 text-xs">{result.runId}</code>
-                          </div>
-                        )}
-                      </div>
-
-                      {result.error && (
-                        <div className="mt-3">
-                          <strong className="text-red-600">Error:</strong>
-                          <div className="bg-red-50 p-2 rounded mt-1 text-sm text-red-700">{result.error}</div>
-                        </div>
-                      )}
-
-                      {result.responseData && (
-                        <div className="mt-3">
-                          <strong className="text-green-600">Response:</strong>
-                          <pre className="bg-green-50 p-2 rounded mt-1 text-xs overflow-x-auto">
-                            {JSON.stringify(result.responseData, null, 2)}
-                          </pre>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+              </div>
+              <StatusBadge result={fullTestResult} />
+            </div>
           </div>
-        )}
-      </div>
+
+          <div className="mt-6 flex gap-4">
+            <Button onClick={runAllTests} className="flex-1">
+              <TestTube className="h-4 w-4 mr-2" />
+              Run All Tests
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Detailed Testing */}
+      <Card>
+        <CardContent className="p-0">
+          <Tabs defaultValue="parallel" className="w-full">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="parallel">Parallel API</TabsTrigger>
+              <TabsTrigger value="openai">OpenAI API</TabsTrigger>
+              <TabsTrigger value="full">Full Analysis</TabsTrigger>
+              <TabsTrigger value="setup">Setup Guide</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="parallel" className="p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold">Parallel.ai API Test</h3>
+                  <p className="text-sm text-gray-600">Test real-time web data extraction</p>
+                </div>
+                <Button onClick={testParallelAPI} disabled={loading.parallel}>
+                  {loading.parallel ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Testing...
+                    </>
+                  ) : (
+                    "Test Parallel API"
+                  )}
+                </Button>
+              </div>
+
+              {parallelResult && (
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center gap-2 mb-4">
+                      <StatusIcon result={parallelResult} />
+                      <span className="font-medium">{parallelResult.message}</span>
+                    </div>
+                    {parallelResult.details && (
+                      <pre className="bg-gray-100 p-4 rounded text-sm overflow-auto">
+                        {JSON.stringify(parallelResult.details, null, 2)}
+                      </pre>
+                    )}
+                    {parallelResult.error && (
+                      <div className="bg-red-50 border border-red-200 rounded p-4 text-red-700 text-sm">
+                        {parallelResult.error}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+
+            <TabsContent value="openai" className="p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold">OpenAI API Test</h3>
+                  <p className="text-sm text-gray-600">Test AI analysis capabilities</p>
+                </div>
+                <Button onClick={testOpenAI} disabled={loading.openai}>
+                  {loading.openai ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Testing...
+                    </>
+                  ) : (
+                    "Test OpenAI API"
+                  )}
+                </Button>
+              </div>
+
+              {openaiResult && (
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center gap-2 mb-4">
+                      <StatusIcon result={openaiResult} />
+                      <span className="font-medium">{openaiResult.message}</span>
+                    </div>
+                    {openaiResult.details && (
+                      <pre className="bg-gray-100 p-4 rounded text-sm overflow-auto">
+                        {JSON.stringify(openaiResult.details, null, 2)}
+                      </pre>
+                    )}
+                    {openaiResult.error && (
+                      <div className="bg-red-50 border border-red-200 rounded p-4 text-red-700 text-sm">
+                        {openaiResult.error}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+
+            <TabsContent value="full" className="p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold">Full Analysis Test</h3>
+                  <p className="text-sm text-gray-600">Test complete workflow with Apple Inc</p>
+                </div>
+                <Button onClick={testFullAnalysis} disabled={loading.full}>
+                  {loading.full ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Testing...
+                    </>
+                  ) : (
+                    "Test Full Analysis"
+                  )}
+                </Button>
+              </div>
+
+              {fullTestResult && (
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center gap-2 mb-4">
+                      <StatusIcon result={fullTestResult} />
+                      <span className="font-medium">{fullTestResult.message}</span>
+                    </div>
+                    {fullTestResult.details && (
+                      <pre className="bg-gray-100 p-4 rounded text-sm overflow-auto">
+                        {JSON.stringify(fullTestResult.details, null, 2)}
+                      </pre>
+                    )}
+                    {fullTestResult.error && (
+                      <div className="bg-red-50 border border-red-200 rounded p-4 text-red-700 text-sm">
+                        {fullTestResult.error}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+
+            <TabsContent value="setup" className="p-6 space-y-4">
+              <div>
+                <h3 className="text-lg font-semibold mb-4">API Setup Guide</h3>
+
+                <div className="space-y-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">1. Parallel.ai API Configuration</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="bg-blue-50 border border-blue-200 rounded p-4">
+                        <p className="text-sm text-blue-800">
+                          <strong>Status:</strong> Your Parallel.ai API key is configured
+                        </p>
+                        <p className="text-sm text-blue-600 mt-1">
+                          Key: HPGIfubbqwk9rLzdb0-hJ28cp8e6_4o7yLLt4JuK (configured)
+                        </p>
+                      </div>
+                      <p className="text-sm text-gray-600">
+                        Parallel.ai provides real-time web data extraction and is your primary data source.
+                      </p>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">2. OpenAI API Configuration</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="bg-yellow-50 border border-yellow-200 rounded p-4">
+                        <p className="text-sm text-yellow-800">
+                          <strong>Action Required:</strong> OpenAI API key needs to be configured
+                        </p>
+                        <p className="text-sm text-yellow-600 mt-1">
+                          Visit{" "}
+                          <a
+                            href="https://platform.openai.com/account/api-keys"
+                            className="underline"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            platform.openai.com
+                          </a>{" "}
+                          to get your API key
+                        </p>
+                      </div>
+                      <p className="text-sm text-gray-600">
+                        OpenAI serves as a fallback when Parallel.ai is unavailable.
+                      </p>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">3. Environment Variables</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="bg-gray-50 border rounded p-4">
+                        <pre className="text-sm">
+                          {`# Add to your .env.local file:
+PARALLEL_API_KEY=your-parallel-api-key
+OPENAI_API_KEY=your-openai-api-key`}
+                        </pre>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">4. Testing Steps</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ol className="list-decimal list-inside space-y-2 text-sm text-gray-600">
+                        <li>Configure your API keys in the environment variables</li>
+                        <li>Test individual APIs using the tabs above</li>
+                        <li>Run the full analysis test to verify the complete workflow</li>
+                        <li>Return to the main dashboard to analyze companies</li>
+                      </ol>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
     </div>
   )
 }

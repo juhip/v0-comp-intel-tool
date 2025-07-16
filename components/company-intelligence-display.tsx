@@ -18,10 +18,8 @@ import {
   Eye,
   Heart,
   AlertCircle,
-  Calendar,
-  MapPin,
 } from "lucide-react"
-import type { CompanySearchResult, CompanyIntelligence } from "../types/company"
+import type { CompanySearchResult } from "../types/company"
 
 interface CompanyIntelligenceDisplayProps {
   company: CompanySearchResult | null
@@ -56,85 +54,93 @@ export function CompanyIntelligenceDisplay({ company }: CompanyIntelligenceDispl
     )
   }
 
-  const data = company.data as CompanyIntelligence
+  return <CompanyIntelligenceDetails data={company.data} />
+}
+
+function CompanyIntelligenceSkeleton() {
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-8 w-64" />
+          <Skeleton className="h-4 w-96" />
+        </CardHeader>
+      </Card>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {Array.from({ length: 9 }).map((_, i) => (
+          <Card key={i}>
+            <CardContent className="p-4">
+              <Skeleton className="h-6 w-32 mb-3" />
+              <Skeleton className="h-4 w-full mb-2" />
+              <Skeleton className="h-4 w-3/4" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function CompanyIntelligenceDetails({ data }: { data: any }) {
+  const sections = [
+    {
+      title: "Basic Information",
+      icon: Building2,
+      items: [
+        { label: "Location", value: data.location },
+        { label: "Industry", value: data.industry },
+        { label: "Position Title", value: data.positionTitle },
+        { label: "Number of Employees", value: data.numberOfEmployees },
+      ],
+    },
+    {
+      title: "Financial Information",
+      icon: DollarSign,
+      items: [
+        { label: "Funding", value: data.funding },
+        { label: "Valuation", value: data.valuation },
+        { label: "Revenue", value: data.revenue },
+        { label: "Margin", value: data.margin },
+      ],
+    },
+    {
+      title: "Leadership",
+      icon: Users,
+      items: [
+        { label: "Chairman/CEO", value: data.chairmanCEO },
+        { label: "Leadership Team", value: data.leadership?.join(", ") || "N/A" },
+      ],
+    },
+    {
+      title: "Market Presence",
+      icon: Globe,
+      items: [
+        { label: "Number of Customers", value: data.numberOfCustomers },
+        { label: "Geographies", value: data.geographiesOfPresence?.join(", ") || "N/A" },
+        { label: "Competitors", value: data.competitors?.join(", ") || "N/A" },
+      ],
+    },
+    {
+      title: "Strategic Strengths",
+      icon: TrendingUp,
+      items: [
+        { label: "Strengths", value: data.strengths?.join(", ") || "N/A" },
+        { label: "Opportunities", value: data.opportunities?.join(", ") || "N/A" },
+        { label: "Unique Characteristics", value: data.uniqueCharacteristics?.join(", ") || "N/A" },
+      ],
+    },
+    {
+      title: "Risk Assessment",
+      icon: AlertTriangle,
+      items: [
+        { label: "Weaknesses", value: data.weaknesses?.join(", ") || "N/A" },
+        { label: "Threats", value: data.threats?.join(", ") || "N/A" },
+      ],
+    },
+  ]
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold mb-4">Company Intelligence</h2>
-      </div>
-
-      {/* Company Overview */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Building2 className="w-5 h-5" />
-            {data.companyName}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
-            <div className="flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm">{data.headquarters}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm">Founded {data.founded}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Users className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm">{data.employees} employees</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <DollarSign className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm">{data.revenue}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm">{data.marketCap}</span>
-            </div>
-            <div>
-              <Badge variant="secondary">{data.industry}</Badge>
-            </div>
-          </div>
-          <p className="text-muted-foreground">{data.description}</p>
-        </CardContent>
-      </Card>
-
-      {/* Key Products */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Key Products & Services</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-2">
-            {data.keyProducts.map((product, index) => (
-              <Badge key={index} variant="outline">
-                {product}
-              </Badge>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Recent News */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent News & Developments</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ul className="space-y-2">
-            {data.recentNews.map((news, index) => (
-              <li key={index} className="flex items-start gap-2">
-                <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0" />
-                <span className="text-sm">{news}</span>
-              </li>
-            ))}
-          </ul>
-        </CardContent>
-      </Card>
-
       {/* Company Header */}
       <Card>
         <CardHeader>
@@ -148,62 +154,7 @@ export function CompanyIntelligenceDisplay({ company }: CompanyIntelligenceDispl
 
       {/* Main Information Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {[
-          {
-            title: "Basic Information",
-            icon: Building2,
-            items: [
-              { label: "Location", value: data.location },
-              { label: "Industry", value: data.industry },
-              { label: "Position Title", value: data.positionTitle },
-              { label: "Number of Employees", value: data.numberOfEmployees },
-            ],
-          },
-          {
-            title: "Financial Information",
-            icon: DollarSign,
-            items: [
-              { label: "Funding", value: data.funding },
-              { label: "Valuation", value: data.valuation },
-              { label: "Revenue", value: data.revenue },
-              { label: "Margin", value: data.margin },
-            ],
-          },
-          {
-            title: "Leadership",
-            icon: Users,
-            items: [
-              { label: "Chairman/CEO", value: data.chairmanCEO },
-              { label: "Leadership Team", value: data.leadership?.join(", ") || "N/A" },
-            ],
-          },
-          {
-            title: "Market Presence",
-            icon: Globe,
-            items: [
-              { label: "Number of Customers", value: data.numberOfCustomers },
-              { label: "Geographies", value: data.geographiesOfPresence?.join(", ") || "N/A" },
-              { label: "Competitors", value: data.competitors?.join(", ") || "N/A" },
-            ],
-          },
-          {
-            title: "Strategic Strengths",
-            icon: TrendingUp,
-            items: [
-              { label: "Strengths", value: data.strengths?.join(", ") || "N/A" },
-              { label: "Opportunities", value: data.opportunities?.join(", ") || "N/A" },
-              { label: "Unique Characteristics", value: data.uniqueCharacteristics?.join(", ") || "N/A" },
-            ],
-          },
-          {
-            title: "Risk Assessment",
-            icon: AlertTriangle,
-            items: [
-              { label: "Weaknesses", value: data.weaknesses?.join(", ") || "N/A" },
-              { label: "Threats", value: data.threats?.join(", ") || "N/A" },
-            ],
-          },
-        ].map((section) => (
+        {sections.map((section) => (
           <Card key={section.title}>
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
@@ -465,30 +416,6 @@ export function CompanyIntelligenceDisplay({ company }: CompanyIntelligenceDispl
           </div>
         </CardContent>
       </Card>
-    </div>
-  )
-}
-
-function CompanyIntelligenceSkeleton() {
-  return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <Skeleton className="h-8 w-64" />
-          <Skeleton className="h-4 w-96" />
-        </CardHeader>
-      </Card>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {Array.from({ length: 9 }).map((_, i) => (
-          <Card key={i}>
-            <CardContent className="p-4">
-              <Skeleton className="h-6 w-32 mb-3" />
-              <Skeleton className="h-4 w-full mb-2" />
-              <Skeleton className="h-4 w-3/4" />
-            </CardContent>
-          </Card>
-        ))}
-      </div>
     </div>
   )
 }

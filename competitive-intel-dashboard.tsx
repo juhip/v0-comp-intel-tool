@@ -13,6 +13,12 @@ export default function CompetitiveIntelDashboard() {
   const [companies, setCompanies] = useState<CompanySearchResult[]>([])
 
   const addCompany = useCallback(async (companyName: string) => {
+    // Check if API key is available
+    if (!process.env.PARALLEL_API_KEY) {
+      toast.error("Parallel API key not configured. Please set PARALLEL_API_KEY environment variable.")
+      return
+    }
+
     // Add company with loading state
     const newCompany: CompanySearchResult = {
       company: companyName,
@@ -23,9 +29,8 @@ export default function CompetitiveIntelDashboard() {
     setCompanies((prev) => [...prev, newCompany])
 
     try {
-      toast.info(`Starting comprehensive analysis for ${companyName}. This may take a few moments...`)
+      toast.info(`Starting analysis for ${companyName}. This may take a few moments...`)
 
-      // Fetch both company intel and competitive analysis automatically
       const companyData = await fetchCompanyIntel(companyName)
 
       setCompanies((prev) =>
@@ -34,7 +39,7 @@ export default function CompetitiveIntelDashboard() {
         ),
       )
 
-      toast.success(`Successfully analyzed ${companyName} with competitive intelligence`)
+      toast.success(`Successfully analyzed ${companyName}`)
     } catch (error) {
       console.error("Error analyzing company:", error)
 
@@ -83,15 +88,7 @@ export default function CompetitiveIntelDashboard() {
   }, [])
 
   const exportData = useCallback(() => {
-    const dataToExport = companies
-      .filter((c) => !c.loading && !c.error)
-      .map((c) => ({
-        company: c.company,
-        analysis_date: new Date().toISOString(),
-        company_intelligence: c.data,
-        competitive_analysis: c.data?.competitive_analysis || null,
-      }))
-
+    const dataToExport = companies.filter((c) => !c.loading && !c.error).map((c) => c.data)
     const jsonString = JSON.stringify(dataToExport, null, 2)
     const blob = new Blob([jsonString], { type: "application/json" })
     const url = URL.createObjectURL(blob)
@@ -103,18 +100,13 @@ export default function CompetitiveIntelDashboard() {
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
 
-    toast.success("Competitive intelligence data exported successfully")
+    toast.success("Data exported successfully")
   }, [companies])
 
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">Competitive Intelligence Dashboard</h1>
-          <p className="text-muted-foreground">
-            Comprehensive company analysis with automatic competitive intelligence
-          </p>
-        </div>
+        <h1 className="text-3xl font-bold">Competitive Intelligence Dashboard</h1>
         <div className="flex gap-2">
           <Button
             variant="outline"
@@ -133,7 +125,7 @@ export default function CompetitiveIntelDashboard() {
         onRemoveCompany={removeCompany}
       />
 
-      <CompanyIntelTable companies={companies} onRefresh={refreshCompany} />
+      <CompanyIntelTable companies={companies} />
     </div>
   )
 }

@@ -1,582 +1,684 @@
-interface CompanyData {
-  company_name: string
-  location: string
-  one_liner: string
-  position_title: string
-  industry: string
-  number_of_employees: string
-  funding: string
-  valuation: string
-  chairman_ceo: string
-  leadership: string[]
-  latest_deals: string[]
-  investors: string[]
-  company_offerings: string[]
-  vision_mission: string
-  values: string[]
-  brands_services: string[]
-  product_categories: string[]
-  new_products: string[]
-  future_priorities: string[]
-  number_of_customers: string
-  geographies: string[]
-  competitors: string[]
-  revenue: string
-  margin: string
-  pov_on_company: string
-  unique_characteristics: string[]
-  strengths: string[]
-  weaknesses: string[]
-  metrics: string[]
-  opportunities: string[]
-  threats: string[]
-  products_like: string[]
-  products_improve: string[]
-  competitive_analysis?: CompetitiveAnalysis
+import type { CompanyIntel } from "../types/company"
+import { fetchCompanyIntelFromOpenAI, fetchCompetitiveAnalysisFromOpenAI } from "./openai-fallback"
+
+const PARALLEL_API_KEY = process.env.PARALLEL_API_KEY || ""
+const PARALLEL_API_URL = "https://api.parallel.ai/v1/tasks/runs"
+
+export async function fetchCompanyIntel(companyName: string): Promise<CompanyIntel> {
+  // NEW PRIORITY ORDER: Parallel.ai → OpenAI → Sample Data
+
+  // Try Parallel.ai first (PRIMARY)
+  try {
+    if (PARALLEL_API_KEY) {
+      console.log("Trying Parallel.ai API (PRIMARY)...")
+      return await fetchCompanyIntelFromParallelAI(companyName)
+    }
+  } catch (error) {
+    console.log("Parallel.ai failed, trying OpenAI fallback:", error)
+  }
+
+  // Try OpenAI second (FALLBACK)
+  try {
+    if (process.env.OPENAI_API_KEY) {
+      console.log("Trying OpenAI API (FALLBACK)...")
+      return await fetchCompanyIntelFromOpenAI(companyName)
+    }
+  } catch (error) {
+    console.log("OpenAI fallback failed, using sample data:", error)
+  }
+
+  // Final fallback to sample data
+  console.log("All APIs failed, using sample data")
+  return getSampleCompanyData(companyName)
 }
 
-interface CompetitorData {
-  company_name: string
-  one_liner: string
-  funding: string
-  investors: string[]
-  positioning: string
-  product_differentiation: string[]
-  customers: string
-  pricing: string
+export async function fetchCompetitiveAnalysis(companyName: string): Promise<any> {
+  // NEW PRIORITY ORDER: Parallel.ai → OpenAI → Sample Data
+
+  // Try Parallel.ai first (PRIMARY)
+  try {
+    if (PARALLEL_API_KEY) {
+      console.log("Trying Parallel.ai competitive analysis (PRIMARY)...")
+      return await fetchCompetitiveAnalysisFromParallelAI(companyName)
+    }
+  } catch (error) {
+    console.log("Parallel.ai competitive analysis failed, trying OpenAI fallback:", error)
+  }
+
+  // Try OpenAI second (FALLBACK)
+  try {
+    if (process.env.OPENAI_API_KEY) {
+      console.log("Trying OpenAI competitive analysis (FALLBACK)...")
+      return await fetchCompetitiveAnalysisFromOpenAI(companyName)
+    }
+  } catch (error) {
+    console.log("OpenAI competitive analysis fallback failed, using sample data:", error)
+  }
+
+  // Final fallback to sample data
+  console.log("All competitive analysis APIs failed, using sample data")
+  return getSampleCompetitiveData(companyName)
 }
 
-interface CompetitiveAnalysis {
-  target_company: string
-  competitors: CompetitorData[]
+async function fetchCompanyIntelFromParallelAI(companyName: string): Promise<CompanyIntel> {
+  const taskSpec = {
+    output_schema: {
+      type: "object",
+      properties: {
+        company_name: { type: "string" },
+        location: { type: "string" },
+        industry: { type: "string" },
+        description: { type: "string" },
+        ceo: { type: "string" },
+        employees: { type: "string" },
+        revenue: { type: "string" },
+        valuation: { type: "string" },
+        funding: { type: "string" },
+        founded: { type: "string" },
+        competitors: { type: "array", items: { type: "string" } },
+        products: { type: "array", items: { type: "string" } },
+        recent_news: { type: "array", items: { type: "string" } },
+        strengths: { type: "array", items: { type: "string" } },
+        weaknesses: { type: "array", items: { type: "string" } },
+        opportunities: { type: "array", items: { type: "string" } },
+        threats: { type: "array", items: { type: "string" } },
+        leadership: { type: "array", items: { type: "string" } },
+        investors: { type: "array", items: { type: "string" } },
+        vision_mission: { type: "string" },
+        values: { type: "array", items: { type: "string" } },
+        market_cap: { type: "string" },
+        headquarters: { type: "string" },
+      },
+    },
+    input: `Extract comprehensive company intelligence for ${companyName}. Provide detailed, accurate, and current information including:
+
+BASIC COMPANY INFORMATION:
+- Company name, location, and headquarters
+- Industry classification and business description
+- Number of employees and company size
+- Founded date and company history
+
+FINANCIAL DATA:
+- Current revenue and financial performance
+- Market capitalization and valuation
+- Funding history and investment rounds
+- Profit margins and financial health
+
+LEADERSHIP & GOVERNANCE:
+- CEO and chairman information
+- Key leadership team members and executives
+- Board of directors and governance structure
+- Recent leadership changes
+
+BUSINESS OPERATIONS:
+- Main products and services offered
+- Key business segments and revenue streams
+- Recent product launches and innovations
+- Company vision, mission, and core values
+
+MARKET POSITION:
+- Main competitors and competitive landscape
+- Market share and positioning
+- Geographic presence and markets served
+- Customer base and target markets
+
+STRATEGIC ANALYSIS:
+- Company strengths and competitive advantages
+- Weaknesses and operational challenges
+- Market opportunities for growth
+- Potential threats and risks
+- Recent news and developments
+- Key investors and stakeholders
+
+Please provide accurate, up-to-date information from reliable sources and structure the response clearly.`,
+    processor: "base",
+  }
+
+  const response = await fetch(PARALLEL_API_URL, {
+    method: "POST",
+    headers: {
+      "x-api-key": PARALLEL_API_KEY,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ task_spec: taskSpec }),
+  })
+
+  if (!response.ok) {
+    throw new Error(`Parallel API request failed: ${response.status} ${response.statusText}`)
+  }
+
+  const result = await response.json()
+  const runId = result.run_id
+
+  if (!runId) {
+    throw new Error("No run ID returned from Parallel API")
+  }
+
+  // Poll for results
+  const taskResult = await pollForResults(runId)
+
+  // Process the structured response from Parallel.ai
+  return processParallelAIResult(taskResult, companyName)
 }
 
-// Sample data for fallback
-const getSampleData = (companyName: string): CompanyData => {
-  const sampleCompanies: Record<string, CompanyData> = {
-    Apple: {
-      company_name: "Apple Inc.",
+async function fetchCompetitiveAnalysisFromParallelAI(companyName: string): Promise<any> {
+  const taskSpec = {
+    output_schema: {
+      type: "object",
+      properties: {
+        main_company: { type: "string" },
+        market_analysis: {
+          type: "object",
+          properties: {
+            market_size: { type: "string" },
+            growth_rate: { type: "string" },
+            key_trends: { type: "array", items: { type: "string" } },
+            barriers_to_entry: { type: "array", items: { type: "string" } },
+          },
+        },
+        competitors: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              market_share: { type: "string" },
+              strengths: { type: "array", items: { type: "string" } },
+              weaknesses: { type: "array", items: { type: "string" } },
+              key_products: { type: "array", items: { type: "string" } },
+              competitive_advantage: { type: "string" },
+              threat_level: { type: "string" },
+            },
+          },
+        },
+        competitive_positioning: {
+          type: "object",
+          properties: {
+            market_leader: { type: "string" },
+            market_challengers: { type: "array", items: { type: "string" } },
+            market_followers: { type: "array", items: { type: "string" } },
+            niche_players: { type: "array", items: { type: "string" } },
+          },
+        },
+        swot_analysis: {
+          type: "object",
+          properties: {
+            strengths: { type: "array", items: { type: "string" } },
+            weaknesses: { type: "array", items: { type: "string" } },
+            opportunities: { type: "array", items: { type: "string" } },
+            threats: { type: "array", items: { type: "string" } },
+          },
+        },
+        recommendations: { type: "array", items: { type: "string" } },
+      },
+    },
+    input: `Provide comprehensive competitive analysis for ${companyName}. Include detailed information about:
+
+MARKET ANALYSIS:
+- Total addressable market size and value
+- Market growth rate and projections
+- Key industry trends and developments
+- Barriers to entry and market dynamics
+
+COMPETITOR IDENTIFICATION & ANALYSIS:
+- Top 5-7 main competitors with market share data
+- Detailed strengths and weaknesses of each competitor
+- Key products and services offered by competitors
+- Competitive advantages and differentiation strategies
+- Threat level assessment (High/Medium/Low) for each competitor
+
+COMPETITIVE POSITIONING:
+- Market leaders, challengers, followers, and niche players
+- Where ${companyName} fits in the competitive landscape
+- Market positioning and differentiation strategies
+
+SWOT ANALYSIS for ${companyName}:
+- Key strengths and competitive advantages
+- Weaknesses and areas for improvement
+- Market opportunities for growth and expansion
+- Potential threats and competitive risks
+
+STRATEGIC RECOMMENDATIONS:
+- Actionable recommendations for competitive advantage
+- Strategic initiatives to strengthen market position
+- Areas for investment and development
+
+Please provide current, accurate data from reliable sources and structure the analysis clearly.`,
+    processor: "base",
+  }
+
+  const response = await fetch(PARALLEL_API_URL, {
+    method: "POST",
+    headers: {
+      "x-api-key": PARALLEL_API_KEY,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ task_spec: taskSpec }),
+  })
+
+  if (!response.ok) {
+    throw new Error(`Parallel API request failed: ${response.status} ${response.statusText}`)
+  }
+
+  const result = await response.json()
+  const runId = result.run_id
+
+  if (!runId) {
+    throw new Error("No run ID returned from Parallel API")
+  }
+
+  const taskResult = await pollForResults(runId)
+  return processCompetitiveAnalysisResult(taskResult, companyName)
+}
+
+async function pollForResults(runId: string, maxAttempts = 30): Promise<any> {
+  const pollUrl = `https://api.parallel.ai/v1/tasks/runs/${runId}/result`
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      const response = await fetch(pollUrl, {
+        headers: {
+          "x-api-key": PARALLEL_API_KEY,
+        },
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        if (result.status === "completed") {
+          return result.result
+        } else if (result.status === "failed") {
+          throw new Error("Task failed: " + result.error)
+        }
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 2000))
+    } catch (error) {
+      if (attempt === maxAttempts - 1) {
+        throw error
+      }
+    }
+  }
+
+  throw new Error("Task timed out")
+}
+
+function processParallelAIResult(result: any, companyName: string): CompanyIntel {
+  // Process structured JSON response from Parallel.ai
+  return {
+    companyName: result.company_name || companyName,
+    location: result.location || result.headquarters || "N/A",
+    oneLiner: result.description || "N/A",
+    positionTitle: "Market Position", // Can be enhanced based on result
+    industry: result.industry || "N/A",
+    numberOfEmployees: result.employees || "N/A",
+    funding: result.funding || "N/A",
+    valuation: result.valuation || result.market_cap || "N/A",
+    chairmanCEO: result.ceo || "N/A",
+    leadership: result.leadership || [],
+    latestDeals: result.recent_news || [],
+    investors: result.investors || [],
+    companyOfferings: result.products || [],
+    visionMission: result.vision_mission || "N/A",
+    values: result.values || [],
+    brandsServices: result.products || [],
+    productServiceCategories: result.products || [],
+    newProducts: [],
+    futurePriorities: [],
+    numberOfCustomers: "N/A",
+    geographiesOfPresence: [],
+    competitors: result.competitors || [],
+    revenue: result.revenue || "N/A",
+    margin: "N/A",
+    povOnCompany: result.description || "N/A",
+    uniqueCharacteristics: [],
+    strengths: result.strengths || [],
+    weaknesses: result.weaknesses || [],
+    metrics: [],
+    opportunities: result.opportunities || [],
+    threats: result.threats || [],
+    insights: result.recent_news || [],
+    productsServicesLiked: [],
+    productsServicesToImprove: [],
+  }
+}
+
+function processCompetitiveAnalysisResult(result: any, companyName: string): any {
+  // Process structured JSON response from Parallel.ai
+  return {
+    main_company: result.main_company || companyName,
+    competitors: result.competitors || [],
+    market_analysis: result.market_analysis || {
+      market_size: "N/A",
+      growth_rate: "N/A",
+      key_trends: [],
+      barriers_to_entry: [],
+    },
+    competitive_positioning: result.competitive_positioning || {
+      market_leader: "N/A",
+      market_challengers: [],
+      market_followers: [],
+      niche_players: [],
+    },
+    swot_comparison: {
+      [companyName]: result.swot_analysis || {
+        strengths: [],
+        weaknesses: [],
+        opportunities: [],
+        threats: [],
+      },
+    },
+    recommendations: result.recommendations || [],
+  }
+}
+
+function getSampleCompanyData(companyName: string): CompanyIntel {
+  const normalizedName = companyName.toLowerCase().trim()
+
+  if (normalizedName === "apple" || normalizedName === "apple inc" || normalizedName === "apple inc.") {
+    return {
+      companyName: "Apple Inc.",
       location: "Cupertino, California, USA",
-      one_liner:
+      oneLiner:
         "Technology company that designs, develops, and sells consumer electronics, computer software, and online services",
-      position_title: "Global leader in consumer technology and innovation",
-      industry: "Consumer Electronics & Technology",
-      number_of_employees: "164,000+",
-      funding: "Public company (NASDAQ: AAPL)",
-      valuation: "$3+ trillion market cap",
-      chairman_ceo: "Tim Cook",
+      positionTitle: "Global Technology Leader",
+      industry: "Technology/Consumer Electronics",
+      numberOfEmployees: "164,000+",
+      funding: "Public Company (NASDAQ: AAPL)",
+      valuation: "$3.0 Trillion",
+      chairmanCEO: "Tim Cook",
       leadership: [
         "Tim Cook (CEO)",
         "Luca Maestri (CFO)",
         "Katherine Adams (General Counsel)",
-        "Deirdre O'Brien (SVP People & Retail)",
+        "Craig Federighi (SVP Software Engineering)",
+        "Johnny Srouji (SVP Hardware Technologies)",
       ],
-      latest_deals: ["Vision Pro launch", "Apple Intelligence AI integration", "Services expansion"],
-      investors: ["Public shareholders", "Institutional investors", "Berkshire Hathaway"],
-      company_offerings: ["iPhone", "iPad", "Mac", "Apple Watch", "AirPods", "Apple TV", "Services"],
-      vision_mission:
-        "To bring the best user experience to customers through innovative hardware, software, and services",
-      values: ["Accessibility", "Privacy", "Environment", "Inclusion & Diversity", "Supplier Responsibility"],
-      brands_services: ["iPhone", "iPad", "Mac", "Apple Watch", "AirPods", "Apple TV+", "iCloud", "App Store"],
-      product_categories: ["Smartphones", "Tablets", "Computers", "Wearables", "Audio", "Services"],
-      new_products: ["Vision Pro", "Apple Intelligence", "M3 chips", "iPhone 15 series"],
-      future_priorities: ["AI integration", "AR/VR expansion", "Services growth", "Sustainability"],
-      number_of_customers: "2+ billion active devices worldwide",
-      geographies: ["Americas", "Europe", "Greater China", "Japan", "Rest of Asia Pacific"],
-      competitors: ["Samsung", "Google", "Microsoft", "Amazon", "Meta"],
-      revenue: "$383 billion (2023)",
-      margin: "~25% gross margin",
-      pov_on_company: "Market leader with strong ecosystem and premium positioning",
-      unique_characteristics: ["Ecosystem integration", "Premium design", "Privacy focus", "Retail experience"],
-      strengths: ["Brand loyalty", "Ecosystem lock-in", "Innovation", "Financial strength"],
-      weaknesses: ["High prices", "Closed ecosystem", "China dependency"],
-      metrics: ["Revenue growth", "Services revenue", "Active installed base", "Customer satisfaction"],
-      opportunities: ["AI integration", "Emerging markets", "Health technology", "Autonomous vehicles"],
-      threats: ["Regulatory pressure", "Competition", "Supply chain risks", "Economic downturn"],
-      products_like: ["iPhone", "AirPods", "Apple Watch", "MacBook"],
-      products_improve: ["Siri", "Apple Maps", "Battery life", "Pricing accessibility"],
-      competitive_analysis: {
-        target_company: "Apple Inc.",
-        competitors: [
-          {
-            company_name: "Samsung",
-            one_liner: "South Korean multinational conglomerate focused on electronics and technology",
-            funding: "Public company with $200B+ revenue",
-            investors: ["Lee family", "Public shareholders", "Institutional investors"],
-            positioning: "Global technology leader with diverse product portfolio",
-            product_differentiation: ["OLED displays", "Memory chips", "Android ecosystem", "Foldable phones"],
-            customers: "Global consumers and B2B clients across all segments",
-            pricing: "Premium to budget across all categories",
-          },
-          {
-            company_name: "Google",
-            one_liner: "Technology company specializing in Internet-related services and products",
-            funding: "Public company (NASDAQ: GOOGL) with $280B+ revenue",
-            investors: ["Alphabet Inc.", "Public shareholders", "Institutional investors"],
-            positioning: "AI-first company with dominant search and advertising platform",
-            product_differentiation: ["AI/ML capabilities", "Search dominance", "Android OS", "Cloud services"],
-            customers: "Billions of users worldwide, advertisers, enterprise clients",
-            pricing: "Freemium model with premium enterprise services",
-          },
-          {
-            company_name: "Microsoft",
-            one_liner: "Technology corporation developing computer software, consumer electronics, and services",
-            funding: "Public company (NASDAQ: MSFT) with $200B+ revenue",
-            investors: ["Public shareholders", "Institutional investors", "Bill Gates Foundation"],
-            positioning: "Productivity and cloud platform leader with AI integration",
-            product_differentiation: ["Office suite", "Azure cloud", "Windows OS", "AI integration"],
-            customers: "Enterprise clients, consumers, developers, government",
-            pricing: "Subscription-based with enterprise licensing",
-          },
-          {
-            company_name: "Amazon",
-            one_liner: "E-commerce and cloud computing company with diverse technology services",
-            funding: "Public company (NASDAQ: AMZN) with $500B+ revenue",
-            investors: ["Jeff Bezos", "Public shareholders", "Institutional investors"],
-            positioning: "E-commerce leader expanding into cloud, AI, and logistics",
-            product_differentiation: ["AWS cloud", "Prime ecosystem", "Alexa AI", "Logistics network"],
-            customers: "Global consumers, businesses, developers, government",
-            pricing: "Competitive pricing with Prime membership model",
-          },
-          {
-            company_name: "Meta",
-            one_liner: "Social technology company building platforms for human connection",
-            funding: "Public company (NASDAQ: META) with $130B+ revenue",
-            investors: ["Mark Zuckerberg", "Public shareholders", "Institutional investors"],
-            positioning: "Social media leader pivoting to metaverse and AI",
-            product_differentiation: ["Social platforms", "VR/AR technology", "AI algorithms", "Advertising platform"],
-            customers: "3+ billion users worldwide, advertisers, developers",
-            pricing: "Free platforms with advertising revenue model",
-          },
-        ],
-      },
-    },
-    Tesla: {
-      company_name: "Tesla, Inc.",
-      location: "Austin, Texas, USA",
-      one_liner: "Electric vehicle and clean energy company accelerating the world's transition to sustainable energy",
-      position_title: "Leading electric vehicle manufacturer and energy storage company",
-      industry: "Automotive & Clean Energy",
-      number_of_employees: "140,000+",
-      funding: "Public company (NASDAQ: TSLA)",
-      valuation: "$800+ billion market cap",
-      chairman_ceo: "Elon Musk",
-      leadership: [
-        "Elon Musk (CEO)",
-        "Zachary Kirkhorn (CFO)",
-        "Drew Baglino (SVP Powertrain & Energy)",
-        "Lars Moravy (VP Vehicle Engineering)",
+      latestDeals: [
+        "Vision Pro Launch Partnership with Disney",
+        "AI Partnership Discussions with OpenAI",
+        "Services Expansion in India",
+        "Carbon Neutral Supply Chain Initiatives",
       ],
-      latest_deals: ["Gigafactory expansion", "Supercharger network opening", "FSD Beta rollout"],
-      investors: ["Public shareholders", "Elon Musk", "Institutional investors"],
-      company_offerings: ["Model S", "Model 3", "Model X", "Model Y", "Cybertruck", "Solar panels", "Energy storage"],
-      vision_mission: "To accelerate the world's transition to sustainable energy",
-      values: ["Sustainability", "Innovation", "Efficiency", "Safety", "Accessibility"],
-      brands_services: ["Tesla vehicles", "Supercharger", "Tesla Energy", "Full Self-Driving", "Tesla Insurance"],
-      product_categories: ["Electric vehicles", "Energy storage", "Solar energy", "Charging infrastructure"],
-      new_products: ["Cybertruck", "Semi", "Roadster 2.0", "4680 battery cells"],
-      future_priorities: ["Full self-driving", "Manufacturing scale", "Energy business", "Robotaxi network"],
-      number_of_customers: "4+ million vehicles delivered",
-      geographies: ["North America", "Europe", "China", "Asia-Pacific"],
-      competitors: ["BYD", "Volkswagen", "GM", "Ford", "Rivian"],
-      revenue: "$96 billion (2023)",
-      margin: "~20% automotive gross margin",
-      pov_on_company: "EV pioneer with strong technology and brand, facing increased competition",
-      unique_characteristics: ["Vertical integration", "Over-the-air updates", "Supercharger network", "Direct sales"],
-      strengths: ["Technology leadership", "Brand strength", "Manufacturing efficiency", "Charging network"],
-      weaknesses: ["Quality issues", "Limited model range", "Dependence on Elon Musk"],
-      metrics: ["Vehicle deliveries", "Production capacity", "Supercharger deployment", "FSD adoption"],
-      opportunities: ["Global EV adoption", "Energy storage market", "Autonomous driving", "Emerging markets"],
-      threats: ["Increased competition", "Regulatory changes", "Supply chain issues", "Economic downturn"],
-      products_like: ["Model Y", "Supercharger network", "Over-the-air updates"],
-      products_improve: ["Build quality", "Service experience", "Model availability"],
-      competitive_analysis: {
-        target_company: "Tesla, Inc.",
-        competitors: [
-          {
-            company_name: "BYD",
-            one_liner: "Chinese multinational conglomerate specializing in electric vehicles and batteries",
-            funding: "Public company with $70B+ revenue",
-            investors: ["Warren Buffett/Berkshire Hathaway", "Chinese government", "Public shareholders"],
-            positioning: "World's largest EV manufacturer by volume with vertical battery integration",
-            product_differentiation: [
-              "Blade battery technology",
-              "Affordable pricing",
-              "Diverse EV lineup",
-              "Bus and commercial vehicles",
-            ],
-            customers: "Global consumers with focus on China and emerging markets",
-            pricing: "Competitive pricing across budget to premium segments",
-          },
-          {
-            company_name: "Volkswagen Group",
-            one_liner: "German multinational automotive manufacturing company",
-            funding: "Public company with $300B+ revenue",
-            investors: ["Porsche SE", "Qatar", "Public shareholders"],
-            positioning: "Traditional automaker transitioning to electric with multiple brands",
-            product_differentiation: [
-              "Multi-brand portfolio",
-              "MEB platform",
-              "European market strength",
-              "Premium positioning",
-            ],
-            customers: "Global consumers across all segments through multiple brands",
-            pricing: "Premium pricing with mass market options",
-          },
-          {
-            company_name: "General Motors",
-            one_liner: "American multinational automotive manufacturing corporation",
-            funding: "Public company (NYSE: GM) with $170B+ revenue",
-            investors: ["Public shareholders", "US government (historically)", "Institutional investors"],
-            positioning: "Traditional automaker investing heavily in electric transition",
-            product_differentiation: [
-              "Ultium platform",
-              "Cruise autonomous",
-              "OnStar services",
-              "Diverse brand portfolio",
-            ],
-            customers: "North American consumers with global presence",
-            pricing: "Mass market to luxury across brand portfolio",
-          },
-          {
-            company_name: "Ford Motor Company",
-            one_liner: "American multinational automobile manufacturer",
-            funding: "Public company (NYSE: F) with $170B+ revenue",
-            investors: ["Ford family", "Public shareholders", "Institutional investors"],
-            positioning: "Traditional automaker with strong truck heritage transitioning to electric",
-            product_differentiation: [
-              "F-150 Lightning",
-              "Commercial vehicle focus",
-              "Ford Pro services",
-              "American heritage",
-            ],
-            customers: "American consumers and commercial fleets",
-            pricing: "Competitive mass market pricing",
-          },
-          {
-            company_name: "Rivian",
-            one_liner: "American electric vehicle manufacturer focused on trucks and delivery vans",
-            funding: "Public company (NASDAQ: RIVN) backed by Amazon",
-            investors: ["Amazon", "Ford", "Public shareholders", "T. Rowe Price"],
-            positioning: "Electric truck and commercial vehicle specialist",
-            product_differentiation: [
-              "Adventure-focused trucks",
-              "Amazon partnership",
-              "Tank turn capability",
-              "Outdoor lifestyle branding",
-            ],
-            customers: "Outdoor enthusiasts and Amazon delivery network",
-            pricing: "Premium pricing for adventure and commercial segments",
-          },
-        ],
-      },
-    },
+      investors: [
+        "Berkshire Hathaway",
+        "Vanguard Group",
+        "BlackRock",
+        "State Street Corporation",
+        "Public Shareholders",
+      ],
+      companyOfferings: ["iPhone", "iPad", "Mac", "Apple Watch", "AirPods", "Apple TV", "Apple Services"],
+      visionMission:
+        "To bring the best user experience to customers through innovative hardware, software, and services that enrich people's lives",
+      values: [
+        "Accessibility for All",
+        "Privacy as a Fundamental Right",
+        "Environmental Responsibility",
+        "Inclusion and Diversity",
+        "Education and Learning",
+      ],
+      brandsServices: [
+        "iPhone",
+        "iPad",
+        "Mac",
+        "Apple Watch",
+        "AirPods",
+        "Apple TV+",
+        "iCloud",
+        "App Store",
+        "Apple Music",
+        "Apple Pay",
+      ],
+      productServiceCategories: [
+        "Smartphones",
+        "Tablets",
+        "Personal Computers",
+        "Wearables",
+        "Audio Devices",
+        "Streaming Services",
+        "Cloud Services",
+        "Digital Payments",
+      ],
+      newProducts: [
+        "Vision Pro (Mixed Reality Headset)",
+        "M3 Pro and M3 Max Chips",
+        "iPhone 15 Series with USB-C",
+        "Apple Watch Series 9",
+        "Updated AirPods Pro",
+      ],
+      futurePriorities: [
+        "AI Integration Across Products",
+        "Augmented Reality and Virtual Reality",
+        "Health Technology Innovation",
+        "Autonomous Vehicle Technology",
+        "Carbon Neutral by 2030",
+        "Expanding Services Revenue",
+      ],
+      numberOfCustomers: "1.8+ billion active devices worldwide",
+      geographiesOfPresence: [
+        "Americas",
+        "Europe",
+        "Greater China",
+        "Japan",
+        "Rest of Asia Pacific",
+        "India (Growing Market)",
+        "Middle East and Africa",
+      ],
+      competitors: ["Samsung", "Google", "Microsoft", "Meta", "Amazon", "Huawei", "Xiaomi", "Sony"],
+      revenue: "$383.3 billion (FY 2023)",
+      margin: "25.3% gross margin",
+      povOnCompany:
+        "Apple maintains its position as the world's most valuable company through premium product positioning, ecosystem integration, and strong brand loyalty. The company successfully balances innovation with profitability while expanding into services and new product categories.",
+      uniqueCharacteristics: [
+        "Seamless Ecosystem Integration",
+        "Premium Brand Positioning",
+        "Design Excellence and Innovation",
+        "Privacy-First Approach",
+        "Vertical Integration Strategy",
+        "Strong Retail Presence",
+      ],
+      strengths: [
+        "Unmatched Brand Loyalty",
+        "Strong Financial Performance",
+        "Innovation Leadership",
+        "Ecosystem Lock-in Effect",
+        "Premium Pricing Power",
+        "Global Supply Chain Mastery",
+      ],
+      weaknesses: [
+        "High Product Prices",
+        "Dependence on iPhone Revenue",
+        "Closed Ecosystem Limitations",
+        "China Market Vulnerability",
+        "Limited Customization Options",
+      ],
+      metrics: [
+        "Market Cap: $3.0 Trillion",
+        "P/E Ratio: 29.2",
+        "Revenue Growth: 3% YoY",
+        "Services Revenue: $85.2B",
+        "iPhone Revenue: 52% of total",
+        "Cash on Hand: $162.1B",
+      ],
+      opportunities: [
+        "AI Integration and Machine Learning",
+        "Emerging Markets Expansion",
+        "Health Technology Growth",
+        "AR/VR Market Leadership",
+        "Services Revenue Expansion",
+        "Autonomous Vehicle Market",
+      ],
+      threats: [
+        "Regulatory Pressure and Antitrust",
+        "China-US Trade Relations",
+        "Intense Competition in Key Markets",
+        "Economic Downturn Impact",
+        "Supply Chain Disruptions",
+        "Privacy Regulation Changes",
+      ],
+      insights: [
+        "Services business growing faster than hardware, providing recurring revenue",
+        "Vision Pro represents Apple's bet on the next computing platform",
+        "AI strategy focuses on on-device processing for privacy",
+        "India becoming increasingly important growth market",
+        "Carbon neutral supply chain initiative ahead of schedule",
+      ],
+      productsServicesLiked: [
+        "iPhone Camera System and Computational Photography",
+        "Apple Watch Health and Fitness Features",
+        "AirPods Pro Noise Cancellation",
+        "M-Series Chip Performance",
+        "App Store Ecosystem",
+        "iMessage and FaceTime Integration",
+      ],
+      productsServicesToImprove: [
+        "Siri AI Assistant Capabilities",
+        "Apple Maps Accuracy and Features",
+        "Battery Life Across Product Line",
+        "Pricing Accessibility in Emerging Markets",
+        "Gaming Performance and Library",
+        "Cross-Platform Compatibility",
+      ],
+    }
   }
 
-  return (
-    sampleCompanies[companyName] || {
-      company_name: companyName,
-      location: "Information not available",
-      one_liner: `${companyName} - Company analysis in progress`,
-      position_title: "Market position analysis pending",
-      industry: "Industry classification pending",
-      number_of_employees: "Employee count not available",
-      funding: "Funding information not available",
-      valuation: "Valuation not available",
-      chairman_ceo: "Leadership information pending",
-      leadership: ["Leadership analysis in progress"],
-      latest_deals: ["Recent activity analysis pending"],
-      investors: ["Investor information not available"],
-      company_offerings: ["Product/service analysis pending"],
-      vision_mission: "Mission and vision analysis in progress",
-      values: ["Company values analysis pending"],
-      brands_services: ["Brand portfolio analysis pending"],
-      product_categories: ["Product categorization pending"],
-      new_products: ["New product analysis pending"],
-      future_priorities: ["Strategic priorities analysis pending"],
-      number_of_customers: "Customer base analysis pending",
-      geographies: ["Geographic presence analysis pending"],
-      competitors: ["Competitive landscape analysis pending"],
-      revenue: "Financial analysis pending",
-      margin: "Profitability analysis pending",
-      pov_on_company: "Market perspective analysis in progress",
-      unique_characteristics: ["Differentiation analysis pending"],
-      strengths: ["Strength analysis pending"],
-      weaknesses: ["Weakness analysis pending"],
-      metrics: ["KPI analysis pending"],
-      opportunities: ["Opportunity analysis pending"],
-      threats: ["Threat analysis pending"],
-      products_like: ["Product sentiment analysis pending"],
-      products_improve: ["Improvement area analysis pending"],
-      competitive_analysis: {
-        target_company: companyName,
-        competitors: [],
-      },
-    }
-  )
-}
-
-async function callParallelAPI(taskPayload: any): Promise<any> {
-  const apiKey = process.env.PARALLEL_API_KEY
-
-  if (!apiKey) {
-    throw new Error("Parallel API key not configured")
-  }
-
-  try {
-    console.log("🔄 Calling Parallel API with task:", taskPayload.task_description)
-
-    const response = await fetch("https://api.parallel.ai/v1/tasks", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(taskPayload),
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error("❌ Parallel API error:", response.status, errorText)
-      throw new Error(`Parallel API error: ${response.status} - ${errorText}`)
-    }
-
-    const result = await response.json()
-    console.log("✅ Parallel API response received")
-    return result
-  } catch (error) {
-    console.error("❌ Parallel API call failed:", error)
-    throw error
+  // Default fallback for unknown companies
+  return {
+    companyName,
+    location: "Location data not available",
+    oneLiner: `${companyName} is a company in the business sector`,
+    positionTitle: "N/A",
+    industry: "Industry data not available",
+    numberOfEmployees: "Employee count not available",
+    funding: "Funding information not available",
+    valuation: "Valuation not available",
+    chairmanCEO: "Leadership information not available",
+    leadership: [],
+    latestDeals: [],
+    investors: [],
+    companyOfferings: [],
+    visionMission: "Mission and vision information not available",
+    values: [],
+    brandsServices: [],
+    productServiceCategories: [],
+    newProducts: [],
+    futurePriorities: [],
+    numberOfCustomers: "Customer data not available",
+    geographiesOfPresence: [],
+    competitors: [],
+    revenue: "Revenue data not available",
+    margin: "Margin data not available",
+    povOnCompany: "Analysis not available for this company",
+    uniqueCharacteristics: [],
+    strengths: [],
+    weaknesses: [],
+    metrics: [],
+    opportunities: [],
+    threats: [],
+    insights: [],
+    productsServicesLiked: [],
+    productsServicesToImprove: [],
   }
 }
 
-async function callOpenAIAPI(companyName: string): Promise<CompanyData> {
-  const apiKey = process.env.OPENAI_API_KEY
+function getSampleCompetitiveData(companyName: string): any {
+  const normalizedName = companyName.toLowerCase().trim()
 
-  if (!apiKey) {
-    throw new Error("OpenAI API key not configured")
+  if (normalizedName === "apple" || normalizedName === "apple inc" || normalizedName === "apple inc.") {
+    return {
+      main_company: "Apple Inc.",
+      competitors: [
+        {
+          name: "Samsung",
+          market_share: "22% global smartphone market",
+          strengths: ["Manufacturing Scale", "Display Technology", "Android Partnership", "Global Reach"],
+          weaknesses: ["Brand Fragmentation", "Software Ecosystem", "Premium Positioning"],
+          key_products: ["Galaxy Series", "Galaxy Watch", "Galaxy Buds", "Tablets"],
+          competitive_advantage: "Leading display technology and manufacturing capabilities",
+          threat_level: "High",
+        },
+        {
+          name: "Google",
+          market_share: "3% smartphone market, dominant in services",
+          strengths: ["AI and Software", "Search Integration", "Cloud Services", "Android OS"],
+          weaknesses: ["Hardware Market Share", "Consumer Trust", "Hardware Quality"],
+          key_products: ["Pixel Phones", "Nest Devices", "Chromebooks", "Google Services"],
+          competitive_advantage: "AI integration and software services",
+          threat_level: "High",
+        },
+        {
+          name: "Microsoft",
+          market_share: "Dominant in productivity software",
+          strengths: ["Enterprise Focus", "Cloud Services", "Productivity Suite", "Gaming"],
+          weaknesses: ["Mobile Presence", "Consumer Hardware", "Brand Appeal"],
+          key_products: ["Surface Devices", "Xbox", "Office 365", "Azure"],
+          competitive_advantage: "Enterprise software and cloud services",
+          threat_level: "Medium",
+        },
+      ],
+      market_analysis: {
+        market_size: "$1.4 trillion global technology market",
+        growth_rate: "5-7% annually",
+        key_trends: ["AI Integration", "5G Adoption", "Sustainability Focus", "Privacy Concerns"],
+        barriers_to_entry: ["High R&D Costs", "Supply Chain Complexity", "Brand Recognition", "Ecosystem Lock-in"],
+      },
+      competitive_positioning: {
+        market_leader: "Apple",
+        market_challengers: ["Samsung", "Google"],
+        market_followers: ["Microsoft", "Huawei"],
+        niche_players: ["OnePlus", "Nothing", "Fairphone"],
+      },
+      swot_comparison: {
+        Apple: {
+          strengths: ["Brand Loyalty", "Ecosystem Integration", "Premium Positioning", "Innovation"],
+          weaknesses: ["High Prices", "Closed Ecosystem", "China Dependence"],
+          opportunities: ["AI Integration", "Health Tech", "Emerging Markets"],
+          threats: ["Regulatory Pressure", "Competition", "Economic Downturn"],
+        },
+      },
+      recommendations: [
+        "Accelerate AI integration across all products to maintain competitive edge",
+        "Expand affordable product lines for emerging markets",
+        "Strengthen supply chain diversification beyond China",
+        "Invest in health technology as a key differentiator",
+        "Enhance services revenue to reduce hardware dependence",
+      ],
+    }
   }
 
-  try {
-    console.log("🔄 Calling OpenAI API for company:", companyName)
-
-    const prompt = `Provide a comprehensive business intelligence analysis for ${companyName}. Include company overview, financial information, competitive analysis, and strategic insights. Format the response as a detailed JSON object with the following structure:
-
-{
-  "company_name": "string",
-  "location": "string",
-  "one_liner": "string",
-  "position_title": "string",
-  "industry": "string",
-  "number_of_employees": "string",
-  "funding": "string",
-  "valuation": "string",
-  "chairman_ceo": "string",
-  "leadership": ["array of leadership team"],
-  "latest_deals": ["recent deals and partnerships"],
-  "investors": ["key investors"],
-  "company_offerings": ["main products/services"],
-  "vision_mission": "string",
-  "values": ["company values"],
-  "brands_services": ["brand portfolio"],
-  "product_categories": ["product categories"],
-  "new_products": ["recent launches"],
-  "future_priorities": ["strategic priorities"],
-  "number_of_customers": "string",
-  "geographies": ["markets served"],
-  "competitors": ["main competitors"],
-  "revenue": "string",
-  "margin": "string",
-  "pov_on_company": "string",
-  "unique_characteristics": ["differentiators"],
-  "strengths": ["company strengths"],
-  "weaknesses": ["areas for improvement"],
-  "metrics": ["key metrics"],
-  "opportunities": ["market opportunities"],
-  "threats": ["potential threats"],
-  "products_like": ["well-regarded products"],
-  "products_improve": ["products needing improvement"],
-  "competitive_analysis": {
-    "target_company": "string",
-    "competitors": [
+  // Default competitive analysis
+  return {
+    main_company: companyName,
+    competitors: [
       {
-        "company_name": "string",
-        "one_liner": "string",
-        "funding": "string",
-        "investors": ["array"],
-        "positioning": "string",
-        "product_differentiation": ["array"],
-        "customers": "string",
-        "pricing": "string"
-      }
-    ]
-  }
-}`
-
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
+        name: "Competitor A",
+        market_share: "Market share data not available",
+        strengths: ["Strength 1", "Strength 2"],
+        weaknesses: ["Weakness 1", "Weakness 2"],
+        key_products: ["Product 1", "Product 2"],
+        competitive_advantage: "Competitive advantage not available",
+        threat_level: "Medium",
       },
-      body: JSON.stringify({
-        model: "gpt-4",
-        messages: [
-          {
-            role: "system",
-            content:
-              "You are a business intelligence analyst. Provide comprehensive, accurate company analysis in the requested JSON format.",
-          },
-          {
-            role: "user",
-            content: prompt,
-          },
-        ],
-        temperature: 0.3,
-        max_tokens: 4000,
-      }),
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error("❌ OpenAI API error:", response.status, errorText)
-      throw new Error(`OpenAI API error: ${response.status}`)
-    }
-
-    const result = await response.json()
-    const content = result.choices[0]?.message?.content
-
-    if (!content) {
-      throw new Error("No content received from OpenAI")
-    }
-
-    try {
-      const parsedData = JSON.parse(content)
-      console.log("✅ OpenAI API response parsed successfully")
-      return parsedData
-    } catch (parseError) {
-      console.error("❌ Failed to parse OpenAI response:", parseError)
-      throw new Error("Failed to parse OpenAI response")
-    }
-  } catch (error) {
-    console.error("❌ OpenAI API call failed:", error)
-    throw error
-  }
-}
-
-export async function fetchCompanyIntel(companyName: string): Promise<CompanyData> {
-  console.log(`🔍 Starting analysis for: ${companyName}`)
-
-  // Try Parallel API first
-  try {
-    const companyTaskPayload = {
-      task_description: `Comprehensive company intelligence analysis for ${companyName}`,
-      research_query: `Conduct a comprehensive business intelligence analysis of ${companyName}. Gather detailed information about the company's business model, leadership, financials, competitive position, and strategic outlook. Focus on publicly available information from official sources, news articles, financial reports, and industry analyses.`,
-      structured_outputs: {
-        company_name: "string",
-        location: "string (headquarters location)",
-        one_liner: "string (brief company description)",
-        position_title: "string (market position/category leader)",
-        industry: "string",
-        number_of_employees: "string",
-        funding: "string (total funding raised)",
-        valuation: "string (latest valuation)",
-        chairman_ceo: "string (current CEO/Chairman name)",
-        leadership: ["array of key leadership team members"],
-        latest_deals: ["array of recent acquisitions, partnerships, or major deals"],
-        investors: ["array of key investors and VCs"],
-        company_offerings: ["array of main products/services"],
-        vision_mission: "string (company vision and mission statement)",
-        values: ["array of company core values"],
-        brands_services: ["array of brand names and service offerings"],
-        product_categories: ["array of product/service categories"],
-        new_products: ["array of recently launched products/services"],
-        future_priorities: ["array of strategic priorities and future plans"],
-        number_of_customers: "string (customer base size)",
-        geographies: ["array of geographic markets served"],
-        competitors: ["array of main competitors"],
-        revenue: "string (latest annual revenue)",
-        margin: "string (profit margin information)",
-        pov_on_company: "string (market perspective and analyst view)",
-        unique_characteristics: ["array of unique differentiators"],
-        strengths: ["array of company strengths"],
-        weaknesses: ["array of company weaknesses"],
-        metrics: ["array of key performance metrics"],
-        opportunities: ["array of market opportunities"],
-        threats: ["array of potential threats"],
-        products_like: ["array of well-regarded products/services"],
-        products_improve: ["array of products/services needing improvement"],
+    ],
+    market_analysis: {
+      market_size: "Market size data not available",
+      growth_rate: "Growth rate not available",
+      key_trends: ["Trend 1", "Trend 2"],
+      barriers_to_entry: ["Barrier 1", "Barrier 2"],
+    },
+    competitive_positioning: {
+      market_leader: "Leader not identified",
+      market_challengers: ["Challenger 1"],
+      market_followers: ["Follower 1"],
+      niche_players: ["Niche Player 1"],
+    },
+    swot_comparison: {
+      [companyName]: {
+        strengths: ["Strength 1", "Strength 2"],
+        weaknesses: ["Weakness 1", "Weakness 2"],
+        opportunities: ["Opportunity 1", "Opportunity 2"],
+        threats: ["Threat 1", "Threat 2"],
       },
-      research_sources: [
-        "Company official website and investor relations",
-        "SEC filings and financial reports",
-        "Recent news articles and press releases",
-        "Industry analyst reports",
-        "LinkedIn company page and leadership profiles",
-        "Crunchbase and funding databases",
-        "Customer reviews and testimonials",
-        "Competitor analysis reports",
-      ],
-    }
-
-    const competitiveTaskPayload = {
-      task_description: `Competitive intelligence analysis for ${companyName} and its main competitors`,
-      research_query: `Identify the top 5-7 direct competitors of ${companyName} and analyze their positioning, funding, products, customers, and pricing strategies. Focus on companies in the same industry and market segment.`,
-      structured_outputs: {
-        target_company: "string",
-        competitors: [
-          {
-            company_name: "string",
-            one_liner: "string (brief company description)",
-            funding: "string (total funding raised or revenue if public)",
-            investors: ["array of key investors"],
-            positioning: "string (market positioning and value proposition)",
-            product_differentiation: ["array of key differentiators and unique features"],
-            customers: "string (target customer segments and notable clients)",
-            pricing: "string (pricing model and typical price points)",
-          },
-        ],
-      },
-      research_sources: [
-        "Company websites and about pages",
-        "Crunchbase and funding databases",
-        "Pricing pages and product documentation",
-        "Customer case studies and testimonials",
-        "Industry reports and competitive analyses",
-        "Recent funding announcements",
-        "Product comparison sites",
-      ],
-    }
-
-    // Fetch both company data and competitive intelligence in parallel
-    const [companyResult, competitiveResult] = await Promise.all([
-      callParallelAPI(companyTaskPayload),
-      callParallelAPI(competitiveTaskPayload),
-    ])
-
-    // Combine the results
-    const combinedData = {
-      ...companyResult,
-      competitive_analysis: competitiveResult,
-    }
-
-    console.log("✅ Parallel API analysis completed successfully")
-    return combinedData
-  } catch (parallelError) {
-    console.log("⚠️ Parallel API failed, trying OpenAI fallback...")
-
-    // Try OpenAI as fallback
-    try {
-      const openaiResult = await callOpenAIAPI(companyName)
-      console.log("✅ OpenAI fallback analysis completed successfully")
-      return openaiResult
-    } catch (openaiError) {
-      console.log("⚠️ OpenAI also failed, using sample data...")
-
-      // Final fallback to sample data
-      const sampleData = getSampleData(companyName)
-      console.log("✅ Using sample data for analysis")
-      return sampleData
-    }
+    },
+    recommendations: ["Recommendation 1", "Recommendation 2"],
   }
 }

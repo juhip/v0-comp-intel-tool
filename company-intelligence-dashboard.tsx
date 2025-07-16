@@ -1,260 +1,213 @@
 "use client"
 
-import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Loader2, Download, RefreshCw, Settings, AlertCircle, Info, CheckCircle } from "lucide-react"
+import { useState, useCallback } from "react"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CompanySearchForm } from "./components/company-search-form"
 import { CompanyIntelligenceDisplay } from "./components/company-intelligence-display"
 import { CompetitiveAnalysisDisplay } from "./components/competitive-analysis-display"
+import { fetchCompanyIntel, fetchCompetitiveAnalysis } from "./services/parallel-api"
+import type { CompanySearchResult } from "./types/company"
+import { Button } from "@/components/ui/button"
+import { Download, RefreshCw } from "lucide-react"
+import { toast } from "sonner"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Info, CheckCircle } from "lucide-react"
 import { ApiSetupGuide } from "./components/api-setup-guide"
-import type { CompanyIntelligence, CompetitiveAnalysis } from "./types/company"
-import { useEffect } from "react"
-
-interface ConfigStatus {
-  mode: "live" | "demo"
-  apis: Record<string, { configured: boolean; name: string }>
-}
+import { Settings } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 
 export default function CompanyIntelligenceDashboard() {
-  const [companyData, setCompanyData] = useState<CompanyIntelligence | null>(null)
-  const [competitiveData, setCompetitiveData] = useState<CompetitiveAnalysis | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [showSetup, setShowSetup] = useState(false)
-  const [dataSource, setDataSource] = useState<string>("")
-  const [configStatus, setConfigStatus] = useState<ConfigStatus | null>(null)
+  const [currentCompany, setCurrentCompany] = useState<CompanySearchResult | null>(null)
+  const [competitiveData, setCompetitiveData] = useState<any>(null)
+  const [competitiveLoading, setCompetitiveLoading] = useState(false)
+  const [competitiveError, setCompetitiveError] = useState<string | undefined>()
+  const [activeTab, setActiveTab] = useState("company-intel")
+  const [showSetupGuide, setShowSetupGuide] = useState(false)
 
-  useEffect(() => {
-    const fetchConfigStatus = async () => {
-      try {
-        const response = await fetch("/api/config-status")
-        const data = await response.json()
-        setConfigStatus(data)
-      } catch (error) {
-        console.error("Failed to fetch config status:", error)
-        setConfigStatus({
-          mode: "demo",
-          apis: {
-            parallel: { configured: false, name: "Parallel.ai" },
-          },
-        })
-      }
-    }
+  const searchCompany = useCallback(async (companyName: string) => {
+    // Set loading state for company intelligence
+    setCurrentCompany({
+      company: companyName,
+      data: {} as any,
+      loading: true,
+    })
 
-    fetchConfigStatus()
-  }, [])
-
-  const handleSearch = async (companyName: string) => {
-    setLoading(true)
-    setError(null)
-    setCompanyData(null)
+    // Set loading state for competitive analysis immediately
     setCompetitiveData(null)
+    setCompetitiveLoading(true)
+    setCompetitiveError(undefined)
 
     try {
-      const response = await fetch("/api/parallel-research", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ companyName }),
+      toast.info(`Analyzing ${companyName} with Parallel.ai. This may take a few moments...`)
+
+      const companyData = await fetchCompanyIntel(companyName)
+
+      setCurrentCompany({
+        company: companyName,
+        data: companyData,
+        loading: false,
       })
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
+      toast.success(`Successfully analyzed ${companyName}`)
 
-      const data = await response.json()
+      // Always load competitive analysis automatically
+      loadCompetitiveAnalysis(companyName)
+    } catch (error) {
+      console.error("Error analyzing company:", error)
 
-      if (data.error) {
-        throw new Error(data.error)
-      }
+      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred"
 
-      setCompanyData(data.companyIntelligence)
-      setCompetitiveData(data.competitiveAnalysis)
-      setDataSource(data.dataSource || "Unknown")
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred")
+      setCurrentCompany({
+        company: companyName,
+        data: {} as any,
+        loading: false,
+        error: errorMessage,
+      })
+
+      // Still try to load competitive analysis even if company intel fails
+      loadCompetitiveAnalysis(companyName)
+
+      toast.error(`Failed to analyze ${companyName}: ${errorMessage}`)
+    }
+  }, [])
+
+  const loadCompetitiveAnalysis = useCallback(async (companyName: string) => {
+    setCompetitiveLoading(true)
+    setCompetitiveError(undefined)
+
+    try {
+      toast.info(`Loading competitive analysis for ${companyName} with Parallel.ai...`)
+
+      const competitiveAnalysis = await fetchCompetitiveAnalysis(companyName)
+      setCompetitiveData(competitiveAnalysis)
+
+      toast.success(`Competitive analysis loaded for ${companyName}`)
+    } catch (error) {
+      console.error("Error loading competitive analysis:", error)
+      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred"
+      setCompetitiveError(errorMessage)
+      toast.error(`Failed to load competitive analysis: ${errorMessage}`)
     } finally {
-      setLoading(false)
+      setCompetitiveLoading(false)
     }
-  }
+  }, [])
 
-  const handleRefresh = () => {
-    if (companyData?.companyName) {
-      handleSearch(companyData.companyName)
+  const refreshCompany = useCallback(async () => {
+    if (currentCompany && !currentCompany.loading) {
+      await searchCompany(currentCompany.company)
     }
-  }
+  }, [currentCompany, searchCompany])
 
-  const handleExport = () => {
-    if (!companyData || !competitiveData) return
+  const exportData = useCallback(() => {
+    if (currentCompany && !currentCompany.loading && !currentCompany.error) {
+      const exportData = {
+        company_intelligence: currentCompany.data,
+        competitive_analysis: competitiveData,
+        export_date: new Date().toISOString(),
+      }
 
-    const exportData = {
-      companyIntelligence: companyData,
-      competitiveAnalysis: competitiveData,
-      dataSource,
-      exportedAt: new Date().toISOString(),
+      const jsonString = JSON.stringify(exportData, null, 2)
+      const blob = new Blob([jsonString], { type: "application/json" })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `${currentCompany.company.toLowerCase().replace(/\s+/g, "-")}-complete-analysis-${new Date().toISOString().split("T")[0]}.json`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+
+      toast.success("Complete analysis data exported successfully")
     }
+  }, [currentCompany, competitiveData])
 
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], {
-      type: "application/json",
-    })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `${companyData.companyName.toLowerCase().replace(/\s+/g, "-")}-analysis.json`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-  }
-
-  const hasParallel = configStatus?.apis.parallel?.configured || false
+  const hasParallel = !!process.env.PARALLEL_API_KEY
+  const hasOpenAI = !!process.env.OPENAI_API_KEY
+  const hasAnyApi = hasParallel || hasOpenAI
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      <div className="container mx-auto px-4 py-8 max-w-7xl">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-            <div>
-              <h1 className="text-4xl font-bold text-slate-900 mb-2">Company Intelligence Dashboard</h1>
-              <p className="text-slate-600 text-lg">Real-time competitive analysis and market intelligence</p>
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setShowSetup(true)}>
-                <Settings className="w-4 h-4 mr-2" />
-                API Setup
-              </Button>
-              {companyData && (
-                <>
-                  <Button variant="outline" onClick={handleRefresh} disabled={loading}>
-                    <RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-                    Refresh
-                  </Button>
-                  <Button onClick={handleExport}>
-                    <Download className="w-4 h-4 mr-2" />
-                    Export
-                  </Button>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* API Status Display */}
-          {configStatus && (
-            <div className="flex gap-2 flex-wrap mb-4">
-              <Badge variant={hasParallel ? "default" : "secondary"} className="flex items-center gap-1">
-                {hasParallel && <CheckCircle className="h-3 w-3" />}
-                Parallel.ai {hasParallel ? "✓ CONFIGURED" : "✗ NOT SET"}
-              </Badge>
-            </div>
-          )}
-
-          {/* Mode Indicator */}
-          {configStatus && (
+    <div className="container mx-auto p-6 space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold">Company Intelligence Dashboard</h1>
+          <p className="text-muted-foreground">Powered by Parallel.ai web intelligence</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowSetupGuide(true)}>
+            <Settings className="h-4 w-4 mr-2" />
+            API Setup
+          </Button>
+          {currentCompany && !currentCompany.loading && (
             <>
-              {hasParallel ? (
-                <Alert className="border-green-200 bg-green-50 mb-6">
-                  <Info className="h-4 w-4 text-green-600" />
-                  <AlertDescription>
-                    <strong>Live Mode:</strong> Parallel.ai configured for real-time web intelligence with automatic
-                    competitive analysis.
-                  </AlertDescription>
-                </Alert>
-              ) : (
-                <Alert className="border-orange-200 bg-orange-50 mb-6">
-                  <Info className="h-4 w-4 text-orange-600" />
-                  <AlertDescription>
-                    <strong>Demo Mode:</strong> No API key configured. The dashboard will show comprehensive sample data
-                    including competitive analysis for Tesla and Apple.
-                    <br />
-                    <span className="text-sm">Configure Parallel.ai for real-time data.</span>
-                  </AlertDescription>
-                </Alert>
-              )}
+              <Button variant="outline" onClick={refreshCompany} disabled={currentCompany.loading}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh
+              </Button>
+              <Button variant="outline" onClick={exportData} disabled={currentCompany.loading || currentCompany.error}>
+                <Download className="h-4 w-4 mr-2" />
+                Export Data
+              </Button>
             </>
           )}
-
-          {/* Data Source Indicator */}
-          {dataSource && (
-            <div className="mb-4">
-              <Badge variant="outline" className="text-xs">
-                Data Source: {dataSource}
-              </Badge>
-            </div>
-          )}
         </div>
-
-        {/* Setup Guide Modal */}
-        {showSetup && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-auto">
-              <ApiSetupGuide onClose={() => setShowSetup(false)} />
-            </div>
-          </div>
-        )}
-
-        {/* Search Form */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle>Company Research</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <CompanySearchForm onSearch={handleSearch} loading={loading} />
-          </CardContent>
-        </Card>
-
-        {/* Error Display */}
-        {error && (
-          <Alert className="mb-8" variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-
-        {/* Loading State */}
-        {loading && (
-          <Card className="mb-8">
-            <CardContent className="flex items-center justify-center py-12">
-              <div className="text-center">
-                <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-                <p className="text-muted-foreground">Analyzing company data...</p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Results */}
-        {companyData && competitiveData && !loading && (
-          <div className="space-y-8">
-            <CompanyIntelligenceDisplay data={companyData} />
-            <CompetitiveAnalysisDisplay data={competitiveData} />
-          </div>
-        )}
-
-        {/* Empty State */}
-        {!companyData && !loading && !error && (
-          <Card>
-            <CardContent className="text-center py-12">
-              <div className="text-muted-foreground">
-                <p className="text-lg mb-2">Ready to analyze companies</p>
-                <p className="mb-4">Enter a company name above to get started with competitive intelligence</p>
-                <div className="flex flex-wrap justify-center gap-2">
-                  <Button variant="outline" size="sm" onClick={() => handleSearch("Tesla")}>
-                    Try Tesla
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => handleSearch("Apple")}>
-                    Try Apple
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
       </div>
+
+      {/* API Status Display */}
+      <div className="flex gap-2 flex-wrap">
+        <Badge variant={hasParallel ? "default" : "secondary"} className="flex items-center gap-1">
+          {hasParallel && <CheckCircle className="h-3 w-3" />}
+          Parallel.ai {hasParallel ? "✓ PRIMARY" : "✗"}
+        </Badge>
+        <Badge variant={hasOpenAI ? "default" : "secondary"} className="flex items-center gap-1">
+          {hasOpenAI && <CheckCircle className="h-3 w-3" />}
+          OpenAI {hasOpenAI ? "✓ FALLBACK" : "✗"}
+        </Badge>
+      </div>
+
+      {hasAnyApi ? (
+        <Alert className="border-green-200 bg-green-50">
+          <Info className="h-4 w-4 text-green-600" />
+          <AlertDescription>
+            <strong>Live Mode:</strong> {hasParallel && "Parallel.ai (PRIMARY)"}
+            {hasOpenAI && (hasParallel ? " → OpenAI (FALLBACK)" : "OpenAI (FALLBACK)")} → Sample Data configured for
+            real-time web intelligence.
+          </AlertDescription>
+        </Alert>
+      ) : (
+        <Alert className="border-orange-200 bg-orange-50">
+          <Info className="h-4 w-4 text-orange-600" />
+          <AlertDescription>
+            <strong>Demo Mode:</strong> No API keys configured. The dashboard will show comprehensive sample data.
+            <br />
+            <span className="text-sm">Configure Parallel.ai (primary) or OpenAI (fallback) for real-time data.</span>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {showSetupGuide && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="max-w-4xl w-full max-h-[90vh] overflow-auto">
+            <ApiSetupGuide onClose={() => setShowSetupGuide(false)} />
+          </div>
+        </div>
+      )}
+
+      <CompanySearchForm onSearchCompany={searchCompany} isLoading={currentCompany?.loading || false} />
+
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="company-intel">Company Intelligence</TabsTrigger>
+          <TabsTrigger value="competitive-intel">Competitive Intelligence</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="company-intel" className="space-y-6">
+          <CompanyIntelligenceDisplay company={currentCompany} />
+        </TabsContent>
+
+        <TabsContent value="competitive-intel" className="space-y-6">
+          <CompetitiveAnalysisDisplay data={competitiveData} loading={competitiveLoading} error={competitiveError} />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

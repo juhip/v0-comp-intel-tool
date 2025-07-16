@@ -44,8 +44,6 @@ export function ApiSetupGuide({ onClose }: ApiSetupGuideProps) {
   }
 
   const hasParallel = configStatus?.apis.parallel?.configured || false
-  const hasOpenAI = configStatus?.apis.openai?.configured || false
-  const hasSupabase = configStatus?.apis.supabase?.configured || false
 
   return (
     <Card className="w-full max-w-4xl mx-auto">
@@ -59,22 +57,12 @@ export function ApiSetupGuide({ onClose }: ApiSetupGuideProps) {
             {hasParallel ? <CheckCircle className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
             Parallel.ai {hasParallel ? "Configured" : "Not Set"}
           </Badge>
-          <Badge variant={hasOpenAI ? "default" : "secondary"} className="flex items-center gap-1">
-            {hasOpenAI ? <CheckCircle className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
-            OpenAI {hasOpenAI ? "Configured" : "Not Set"}
-          </Badge>
-          <Badge variant={hasSupabase ? "default" : "secondary"} className="flex items-center gap-1">
-            {hasSupabase ? <CheckCircle className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
-            Supabase {hasSupabase ? "Configured" : "Not Set"}
-          </Badge>
         </div>
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="parallel" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="parallel">Parallel.ai (Primary)</TabsTrigger>
-            <TabsTrigger value="openai">OpenAI (Fallback)</TabsTrigger>
-            <TabsTrigger value="supabase">Supabase (Database)</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="parallel">Parallel.ai Setup</TabsTrigger>
             <TabsTrigger value="deployment">Deployment</TabsTrigger>
           </TabsList>
 
@@ -119,83 +107,14 @@ export function ApiSetupGuide({ onClose }: ApiSetupGuideProps) {
                   </div>
                 </div>
               </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="openai" className="space-y-4">
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                <strong>OpenAI</strong> serves as a reliable fallback when Parallel.ai is unavailable, using GPT-4 for
-                comprehensive analysis.
-              </AlertDescription>
-            </Alert>
-
-            <div className="space-y-4">
-              <div>
-                <h3 className="font-semibold mb-2">1. Get Your API Key</h3>
-                <p className="text-sm text-muted-foreground mb-2">Sign up at OpenAI Platform and create an API key.</p>
-                <Button variant="outline" size="sm" asChild>
-                  <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="h-4 w-4 mr-2" />
-                    Get OpenAI API Key
-                  </a>
-                </Button>
-              </div>
 
               <div>
-                <h3 className="font-semibold mb-2">2. Set Environment Variable</h3>
-                <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground">Add this to your .env.local file:</p>
-                  <div className="bg-muted p-3 rounded-md font-mono text-sm flex items-center justify-between">
-                    <span>OPENAI_API_KEY=your_openai_api_key_here</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => copyToClipboard("OPENAI_API_KEY=your_openai_api_key_here", "OpenAI env var")}
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="supabase" className="space-y-4">
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                <strong>Supabase</strong> provides database storage and user authentication. Optional but recommended
-                for saving analyses and user accounts.
-              </AlertDescription>
-            </Alert>
-
-            <div className="space-y-4">
-              <div>
-                <h3 className="font-semibold mb-2">1. Create Supabase Project</h3>
-                <Button variant="outline" size="sm" asChild>
-                  <a href="https://supabase.com/dashboard" target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="h-4 w-4 mr-2" />
-                    Create Supabase Project
-                  </a>
-                </Button>
-              </div>
-
-              <div>
-                <h3 className="font-semibold mb-2">2. Set Environment Variables</h3>
-                <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground">
-                    Add these to your .env.local file (get values from your Supabase project settings):
-                  </p>
-                  <div className="bg-muted p-3 rounded-md font-mono text-sm">
-                    <div>DATABASE_URL=[your-supabase-database-url]</div>
-                    <div>DATABASE_ANON_KEY=[your-supabase-anon-key]</div>
-                    <div>DATABASE_SERVICE_KEY=[your-service-role-key]</div>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Find these values in your Supabase project → Settings → API
-                  </p>
+                <h3 className="font-semibold mb-2">3. Features</h3>
+                <div className="text-sm text-muted-foreground space-y-1">
+                  <p>• Real-time web data extraction</p>
+                  <p>• Structured JSON output</p>
+                  <p>• Comprehensive company intelligence</p>
+                  <p>• Competitive analysis</p>
                 </div>
               </div>
             </div>
@@ -206,36 +125,46 @@ export function ApiSetupGuide({ onClose }: ApiSetupGuideProps) {
               <div>
                 <h3 className="font-semibold mb-2">Environment Variables Template</h3>
                 <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground">Create a .env.local file with these variables:</p>
+                  <p className="text-sm text-muted-foreground">Create a .env.local file with this variable:</p>
                   <div className="bg-muted p-3 rounded-md font-mono text-sm">
-                    <div># .env.local - API Keys</div>
+                    <div># .env.local - API Key</div>
                     <div>PARALLEL_API_KEY=your_parallel_api_key_here</div>
-                    <div>OPENAI_API_KEY=your_openai_api_key_here</div>
-                    <div>XAI_API_KEY=your_xai_api_key_here</div>
                   </div>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() =>
                       copyToClipboard(
-                        "# .env.local\nPARALLEL_API_KEY=your_parallel_api_key_here\nOPENAI_API_KEY=your_openai_api_key_here\nXAI_API_KEY=your_xai_api_key_here",
+                        "# .env.local\nPARALLEL_API_KEY=your_parallel_api_key_here",
                         ".env.local template",
                       )
                     }
                   >
                     <Copy className="h-4 w-4 mr-2" />
-                    Copy API Keys Template
+                    Copy Template
                   </Button>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="font-semibold mb-2">Fallback System</h3>
+                <div className="text-sm text-muted-foreground space-y-1">
+                  <p>
+                    <strong>1. Parallel.ai (PRIMARY)</strong> - Real-time web data extraction
+                  </p>
+                  <p>
+                    <strong>2. Sample Data (DEMO)</strong> - Comprehensive fallback with Tesla and Apple examples
+                  </p>
                 </div>
               </div>
 
               <div>
                 <h3 className="font-semibold mb-2">Security Notes</h3>
                 <div className="text-sm text-muted-foreground space-y-1">
-                  <p>• API keys are server-side only and not exposed to the client</p>
-                  <p>• Only Supabase URLs are client-accessible (NEXT_PUBLIC_ prefix)</p>
+                  <p>• API key is server-side only and not exposed to the client</p>
                   <p>• Never commit .env.local to version control</p>
                   <p>• Use platform environment variables for production deployment</p>
+                  <p>• Dashboard works fully in demo mode without API key</p>
                 </div>
               </div>
             </div>

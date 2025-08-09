@@ -1,5 +1,3 @@
-// Client helper that triggers Lindy (async) and waits for the callback by polling our result endpoint.
-
 import type { CompanyIntel } from "../types/company"
 
 type LindyCombinedResponse = {
@@ -14,7 +12,7 @@ async function pollForResult(requestId: string, timeoutMs = 90_000, intervalMs =
     const res = await fetch(`/api/lindy/result?request_id=${encodeURIComponent(requestId)}`, { cache: "no-store" })
     const json = await res.json()
     if (json?.ready && json.data) {
-      // Cleanup best-effort (ignore errors)
+      // Best-effort cleanup
       fetch(`/api/lindy/result?request_id=${encodeURIComponent(requestId)}`, { method: "DELETE" }).catch(() => {})
       return json.data
     }
@@ -24,7 +22,6 @@ async function pollForResult(requestId: string, timeoutMs = 90_000, intervalMs =
 }
 
 export async function fetchFromLindy(companyName: string): Promise<LindyCombinedResponse> {
-  // Step 1: Trigger Lindy with a generated requestId (the server may also generate one)
   const trigger = await fetch("/api/lindy/trigger", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -44,9 +41,31 @@ export async function fetchFromLindy(companyName: string): Promise<LindyCombined
   const requestId: string = tri?.request_id
   if (!requestId) throw new Error("No request_id returned from trigger")
 
-  // Step 2: Poll for the callback result
+  // Wait for the callback response (raw)
   const data = await pollForResult(requestId)
-  return data as LindyCombinedResponse
+
+  // After callback, our callback handler may have parsed sheets and normalized them asynchronously.
+  // The latest endpoint will return normalized if available.
+  const latest = await fetchLatestLindy(companyName)
+  return (latest ?? data) as LindyCombinedResponse
+}
+
+export async function fetchLatestLindy(companyName: string): Promise<LindyCombinedResponse | null> {
+  const res = await fetch(`/api/lindy/latest?company=${encodeURIComponent(companyName)}`, { cache: "no-store" })
+  const json = await res.json()
+  if (!json?.ok || !json?.found) return null
+  return json.data as LindyCombinedResponse
+}
+
+export async function refreshLindy(companyName: string): Promise<LindyCombinedResponse | null> {
+  const res = await fetch("/api/lindy/refresh", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ company: companyName }),
+  })
+  if (!res.ok) return null
+  const json = await res.json()
+  return (json?.data ?? null) as LindyCombinedResponse | null
 }
 
 export function mapLindyCompanyIntel(input: any, fallbackCompanyName: string): CompanyIntel {

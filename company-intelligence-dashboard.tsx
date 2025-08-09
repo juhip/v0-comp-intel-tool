@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useEffect, useRef, useState, useCallback } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CompanySearchForm } from "./components/company-search-form"
 import { CompanyIntelligenceDisplay } from "./components/company-intelligence-display"
@@ -15,6 +15,8 @@ import { Info, CheckCircle } from "lucide-react"
 import { ApiSetupGuide } from "./components/api-setup-guide"
 import { Settings } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { fetchLatestLindy } from "./services/lindy-api"
+import { mapLindyCompanyIntel } from "./services/lindy-api"
 
 export default function CompanyIntelligenceDashboard() {
   const [currentCompany, setCurrentCompany] = useState<CompanySearchResult | null>(null)
@@ -23,25 +25,23 @@ export default function CompanyIntelligenceDashboard() {
   const [competitiveError, setCompetitiveError] = useState<string | undefined>()
   const [activeTab, setActiveTab] = useState("company-intel")
   const [showSetupGuide, setShowSetupGuide] = useState(false)
+  const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const searchCompany = useCallback(async (companyName: string) => {
-    // Set loading state for company intelligence
     setCurrentCompany({
       company: companyName,
       data: {} as any,
       loading: true,
     })
 
-    // Set loading state for competitive analysis immediately
     setCompetitiveData(null)
     setCompetitiveLoading(true)
     setCompetitiveError(undefined)
 
     try {
-      toast.info(`Analyzing ${companyName} with Parallel.ai. This may take a few moments...`)
+      toast.info(`Analyzing ${companyName}. This may take a few moments...`)
 
       const companyData = await fetchCompanyIntel(companyName)
-
       setCurrentCompany({
         company: companyName,
         data: companyData,
@@ -50,23 +50,18 @@ export default function CompanyIntelligenceDashboard() {
 
       toast.success(`Successfully analyzed ${companyName}`)
 
-      // Always load competitive analysis automatically
       loadCompetitiveAnalysis(companyName)
+      startLindyPolling(companyName)
     } catch (error) {
-      console.error("Error analyzing company:", error)
-
       const errorMessage = error instanceof Error ? error.message : "Unknown error occurred"
-
       setCurrentCompany({
         company: companyName,
         data: {} as any,
         loading: false,
         error: errorMessage,
       })
-
-      // Still try to load competitive analysis even if company intel fails
       loadCompetitiveAnalysis(companyName)
-
+      startLindyPolling(companyName)
       toast.error(`Failed to analyze ${companyName}: ${errorMessage}`)
     }
   }, [])
@@ -76,19 +71,45 @@ export default function CompanyIntelligenceDashboard() {
     setCompetitiveError(undefined)
 
     try {
-      toast.info(`Loading competitive analysis for ${companyName} with Parallel.ai...`)
-
       const competitiveAnalysis = await fetchCompetitiveAnalysis(companyName)
       setCompetitiveData(competitiveAnalysis)
-
       toast.success(`Competitive analysis loaded for ${companyName}`)
     } catch (error) {
-      console.error("Error loading competitive analysis:", error)
       const errorMessage = error instanceof Error ? error.message : "Unknown error occurred"
       setCompetitiveError(errorMessage)
       toast.error(`Failed to load competitive analysis: ${errorMessage}`)
     } finally {
       setCompetitiveLoading(false)
+    }
+  }, [])
+
+  // Poll Lindy latest normalized payload and merge into UI if newer fields arrive from spreadsheet.
+  const startLindyPolling = useCallback((companyName: string) => {
+    if (pollTimer.current) clearInterval(pollTimer.current)
+    pollTimer.current = setInterval(async () => {
+      try {
+        const latest = await fetchLatestLindy(companyName)
+        if (!latest) return
+
+        // If spreadsheet-derived normalized payload includes company_intelligence or competitive_analysis,
+        // merge into the current UI.
+        if (latest.company_intelligence) {
+          setCurrentCompany((prev) =>
+            prev && prev.company === companyName ? { ...prev, data: mapLindyCompanyIntel(latest, companyName) } : prev,
+          )
+        }
+        if (latest.competitive_analysis) {
+          setCompetitiveData((prev: any) => (prev ? latest.competitive_analysis : latest.competitive_analysis))
+        }
+      } catch {
+        // swallow polling errors
+      }
+    }, 20000) // every 20s
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (pollTimer.current) clearInterval(pollTimer.current)
     }
   }, [])
 
@@ -173,9 +194,8 @@ export default function CompanyIntelligenceDashboard() {
         <Alert className="border-green-200 bg-green-50">
           <Info className="h-4 w-4 text-green-600" />
           <AlertDescription>
-            <strong>Live Mode:</strong> {hasLindy && "Lindy (PRIMARY)"}
-            {hasParallel && (hasLindy ? " → Parallel.ai (FALLBACK)" : "Parallel.ai (FALLBACK)")}
-            {hasOpenAI && " → OpenAI (FALLBACK)"} → Sample Data configured for real-time web intelligence.
+            <strong>Live Mode:</strong> Lindy (PRIMARY)
+            {hasParallel && " → Parallel.ai (FALLBACK)"} {hasOpenAI && " → OpenAI (FALLBACK)"} → Sample Data fallback.
           </AlertDescription>
         </Alert>
       ) : (
@@ -183,8 +203,6 @@ export default function CompanyIntelligenceDashboard() {
           <Info className="h-4 w-4 text-orange-600" />
           <AlertDescription>
             <strong>Demo Mode:</strong> No API keys configured. The dashboard will show comprehensive sample data.
-            <br />
-            <span className="text-sm">Configure Parallel.ai (primary) or OpenAI (fallback) for real-time data.</span>
           </AlertDescription>
         </Alert>
       )}

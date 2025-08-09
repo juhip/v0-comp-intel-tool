@@ -5,9 +5,8 @@ import { fetchFromLindy, mapLindyCompanyIntel, mapLindyCompetitive } from "./lin
 const PARALLEL_API_KEY = process.env.PARALLEL_API_KEY || ""
 const PARALLEL_API_URL = "https://api.parallel.ai/v1/tasks/runs"
 
-// Try Lindy first via internal proxy. If unavailable, fall back to Parallel → OpenAI → Sample.
+// Try Lindy first via internal proxy (async with callback). If unavailable, fall back to Parallel → OpenAI → Sample.
 export async function fetchCompanyIntel(companyName: string): Promise<CompanyIntel> {
-  // 1) Lindy (PRIMARY if configured)
   try {
     if (process.env.LINDY_WEBHOOK_URL && process.env.LINDY_WEBHOOK_SECRET) {
       const lindy = await fetchFromLindy(companyName)
@@ -18,7 +17,6 @@ export async function fetchCompanyIntel(companyName: string): Promise<CompanyInt
     console.log("Lindy failed, falling back:", e)
   }
 
-  // 2) Parallel.ai
   try {
     if (PARALLEL_API_KEY) {
       return await fetchCompanyIntelFromParallelAI(companyName)
@@ -27,7 +25,6 @@ export async function fetchCompanyIntel(companyName: string): Promise<CompanyInt
     console.log("Parallel failed, trying OpenAI:", e)
   }
 
-  // 3) OpenAI
   try {
     if (process.env.OPENAI_API_KEY) {
       return await fetchCompanyIntelFromOpenAI(companyName)
@@ -36,12 +33,10 @@ export async function fetchCompanyIntel(companyName: string): Promise<CompanyInt
     console.log("OpenAI fallback failed, using sample:", e)
   }
 
-  // 4) Sample
   return getSampleCompanyData(companyName)
 }
 
 export async function fetchCompetitiveAnalysis(companyName: string): Promise<any> {
-  // 1) Lindy (PRIMARY if configured)
   try {
     if (process.env.LINDY_WEBHOOK_URL && process.env.LINDY_WEBHOOK_SECRET) {
       const lindy = await fetchFromLindy(companyName)
@@ -51,7 +46,6 @@ export async function fetchCompetitiveAnalysis(companyName: string): Promise<any
     console.log("Lindy competitive failed, falling back:", e)
   }
 
-  // 2) Parallel.ai
   try {
     if (PARALLEL_API_KEY) {
       return await fetchCompetitiveAnalysisFromParallelAI(companyName)
@@ -60,7 +54,6 @@ export async function fetchCompetitiveAnalysis(companyName: string): Promise<any
     console.log("Parallel competitive failed, trying OpenAI:", e)
   }
 
-  // 3) OpenAI
   try {
     if (process.env.OPENAI_API_KEY) {
       return await fetchCompetitiveAnalysisFromOpenAI(companyName)
@@ -69,7 +62,6 @@ export async function fetchCompetitiveAnalysis(companyName: string): Promise<any
     console.log("OpenAI competitive failed, using sample:", e)
   }
 
-  // 4) Sample
   return getSampleCompetitiveData(companyName)
 }
 

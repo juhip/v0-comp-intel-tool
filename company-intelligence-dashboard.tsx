@@ -15,8 +15,6 @@ import { Info, CheckCircle } from "lucide-react"
 import { ApiSetupGuide } from "./components/api-setup-guide"
 import { Settings } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { WebhookTester } from "./components/webhook-tester"
-import { LindyTester } from "./components/lindy-tester"
 
 export default function CompanyIntelligenceDashboard() {
   const [currentCompany, setCurrentCompany] = useState<CompanySearchResult | null>(null)
@@ -126,7 +124,7 @@ export default function CompanyIntelligenceDashboard() {
   const hasParallel = !!process.env.PARALLEL_API_KEY
   const hasOpenAI = !!process.env.OPENAI_API_KEY
   const hasLindy = !!process.env.LINDY_WEBHOOK_URL && !!process.env.LINDY_WEBHOOK_SECRET
-  const hasAnyApi = hasParallel || hasOpenAI
+  const hasAnyApi = hasLindy || hasParallel || hasOpenAI
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -169,14 +167,6 @@ export default function CompanyIntelligenceDashboard() {
           {hasOpenAI && <CheckCircle className="h-3 w-3" />}
           OpenAI {hasOpenAI ? "✓ FALLBACK" : "✗"}
         </Badge>
-      </div>
-
-      <div className="max-w-xl">
-        <LindyTester />
-      </div>
-
-      <div className="max-w-md">
-        <WebhookTester />
       </div>
 
       {hasAnyApi ? (

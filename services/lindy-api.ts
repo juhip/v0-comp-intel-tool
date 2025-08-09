@@ -1,4 +1,4 @@
-// Client helper and mappers for Lindy integration.
+// Client helper that triggers Lindy (async) and waits for the callback by polling our result endpoint.
 
 import type { CompanyIntel } from "../types/company"
 
@@ -8,8 +8,24 @@ type LindyCombinedResponse = {
   [k: string]: any
 }
 
+async function pollForResult(requestId: string, timeoutMs = 90_000, intervalMs = 2000): Promise<any> {
+  const until = Date.now() + timeoutMs
+  while (Date.now() < until) {
+    const res = await fetch(`/api/lindy/result?request_id=${encodeURIComponent(requestId)}`, { cache: "no-store" })
+    const json = await res.json()
+    if (json?.ready && json.data) {
+      // Cleanup best-effort (ignore errors)
+      fetch(`/api/lindy/result?request_id=${encodeURIComponent(requestId)}`, { method: "DELETE" }).catch(() => {})
+      return json.data
+    }
+    await new Promise((r) => setTimeout(r, intervalMs))
+  }
+  throw new Error("Timeout waiting for Lindy callback")
+}
+
 export async function fetchFromLindy(companyName: string): Promise<LindyCombinedResponse> {
-  const res = await fetch("/api/lindy/trigger", {
+  // Step 1: Trigger Lindy with a generated requestId (the server may also generate one)
+  const trigger = await fetch("/api/lindy/trigger", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -18,11 +34,19 @@ export async function fetchFromLindy(companyName: string): Promise<LindyCombined
       metadata: { source: "dashboard" },
     }),
   })
-  if (!res.ok) {
-    const text = await res.text().catch(() => "")
-    throw new Error(text || `Lindy trigger failed: ${res.status} ${res.statusText}`)
+
+  if (!trigger.ok) {
+    const text = await trigger.text().catch(() => "")
+    throw new Error(text || `Lindy trigger failed: ${trigger.status} ${trigger.statusText}`)
   }
-  return (await res.json()) as LindyCombinedResponse
+
+  const tri = await trigger.json()
+  const requestId: string = tri?.request_id
+  if (!requestId) throw new Error("No request_id returned from trigger")
+
+  // Step 2: Poll for the callback result
+  const data = await pollForResult(requestId)
+  return data as LindyCombinedResponse
 }
 
 export function mapLindyCompanyIntel(input: any, fallbackCompanyName: string): CompanyIntel {

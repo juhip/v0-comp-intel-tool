@@ -15,6 +15,8 @@ import { Info, CheckCircle } from "lucide-react"
 import { ApiSetupGuide } from "./components/api-setup-guide"
 import { Settings } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { WebhookTester } from "./components/webhook-tester"
+import { LindyTester } from "./components/lindy-tester"
 
 export default function CompanyIntelligenceDashboard() {
   const [currentCompany, setCurrentCompany] = useState<CompanySearchResult | null>(null)
@@ -123,6 +125,7 @@ export default function CompanyIntelligenceDashboard() {
 
   const hasParallel = !!process.env.PARALLEL_API_KEY
   const hasOpenAI = !!process.env.OPENAI_API_KEY
+  const hasLindy = !!process.env.LINDY_WEBHOOK_URL && !!process.env.LINDY_WEBHOOK_SECRET
   const hasAnyApi = hasParallel || hasOpenAI
 
   return (
@@ -154,6 +157,10 @@ export default function CompanyIntelligenceDashboard() {
 
       {/* API Status Display */}
       <div className="flex gap-2 flex-wrap">
+        <Badge variant={hasLindy ? "default" : "secondary"} className="flex items-center gap-1">
+          {hasLindy && <CheckCircle className="h-3 w-3" />}
+          Lindy {hasLindy ? "✓ PRIMARY" : "✗"}
+        </Badge>
         <Badge variant={hasParallel ? "default" : "secondary"} className="flex items-center gap-1">
           {hasParallel && <CheckCircle className="h-3 w-3" />}
           Parallel.ai {hasParallel ? "✓ PRIMARY" : "✗"}
@@ -164,13 +171,21 @@ export default function CompanyIntelligenceDashboard() {
         </Badge>
       </div>
 
+      <div className="max-w-xl">
+        <LindyTester />
+      </div>
+
+      <div className="max-w-md">
+        <WebhookTester />
+      </div>
+
       {hasAnyApi ? (
         <Alert className="border-green-200 bg-green-50">
           <Info className="h-4 w-4 text-green-600" />
           <AlertDescription>
-            <strong>Live Mode:</strong> {hasParallel && "Parallel.ai (PRIMARY)"}
-            {hasOpenAI && (hasParallel ? " → OpenAI (FALLBACK)" : "OpenAI (FALLBACK)")} → Sample Data configured for
-            real-time web intelligence.
+            <strong>Live Mode:</strong> {hasLindy && "Lindy (PRIMARY)"}
+            {hasParallel && (hasLindy ? " → Parallel.ai (FALLBACK)" : "Parallel.ai (FALLBACK)")}
+            {hasOpenAI && " → OpenAI (FALLBACK)"} → Sample Data configured for real-time web intelligence.
           </AlertDescription>
         </Alert>
       ) : (

@@ -1,0 +1,22 @@
+// app/api/lindy/trigger/route.ts
+const headers: Record<string, string> = {
+  "Content-Type": "application/json",
+  // Send all common auth conventions for compatibility with Lindy's public webhook
+  Authorization: `Bearer ${LINDY_WEBHOOK_SECRET}`,
+  "X-Api-Key": LINDY_WEBHOOK_SECRET,
+  "X-Webhook-Secret": LINDY_WEBHOOK_SECRET,
+}
+
+// company-intelligence-dashboard.tsx
+import { hasLindy, hasParallel, hasOpenAI } from "./api-status";
+
+const hasAnyApi = hasLindy || hasParallel || hasOpenAI;
+
+// JSX rendering
+{
+  hasAnyApi && (
+    <div>
+      {/* API status badges here */}
+    </div>
+  )
+}

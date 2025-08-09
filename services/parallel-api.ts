@@ -1,62 +1,75 @@
 import type { CompanyIntel } from "../types/company"
 import { fetchCompanyIntelFromOpenAI, fetchCompetitiveAnalysisFromOpenAI } from "./openai-fallback"
+import { fetchFromLindy, mapLindyCompanyIntel, mapLindyCompetitive } from "./lindy-api"
 
 const PARALLEL_API_KEY = process.env.PARALLEL_API_KEY || ""
 const PARALLEL_API_URL = "https://api.parallel.ai/v1/tasks/runs"
 
+// Try Lindy first via internal proxy. If unavailable, fall back to Parallel → OpenAI → Sample.
 export async function fetchCompanyIntel(companyName: string): Promise<CompanyIntel> {
-  // NEW PRIORITY ORDER: Parallel.ai → OpenAI → Sample Data
+  // 1) Lindy (PRIMARY if configured)
+  try {
+    if (process.env.LINDY_WEBHOOK_URL && process.env.LINDY_WEBHOOK_SECRET) {
+      const lindy = await fetchFromLindy(companyName)
+      const intel = lindy.company_intelligence ?? lindy
+      return mapLindyCompanyIntel(intel, companyName)
+    }
+  } catch (e) {
+    console.log("Lindy failed, falling back:", e)
+  }
 
-  // Try Parallel.ai first (PRIMARY)
+  // 2) Parallel.ai
   try {
     if (PARALLEL_API_KEY) {
-      console.log("Trying Parallel.ai API (PRIMARY)...")
       return await fetchCompanyIntelFromParallelAI(companyName)
     }
-  } catch (error) {
-    console.log("Parallel.ai failed, trying OpenAI fallback:", error)
+  } catch (e) {
+    console.log("Parallel failed, trying OpenAI:", e)
   }
 
-  // Try OpenAI second (FALLBACK)
+  // 3) OpenAI
   try {
     if (process.env.OPENAI_API_KEY) {
-      console.log("Trying OpenAI API (FALLBACK)...")
       return await fetchCompanyIntelFromOpenAI(companyName)
     }
-  } catch (error) {
-    console.log("OpenAI fallback failed, using sample data:", error)
+  } catch (e) {
+    console.log("OpenAI fallback failed, using sample:", e)
   }
 
-  // Final fallback to sample data
-  console.log("All APIs failed, using sample data")
+  // 4) Sample
   return getSampleCompanyData(companyName)
 }
 
 export async function fetchCompetitiveAnalysis(companyName: string): Promise<any> {
-  // NEW PRIORITY ORDER: Parallel.ai → OpenAI → Sample Data
+  // 1) Lindy (PRIMARY if configured)
+  try {
+    if (process.env.LINDY_WEBHOOK_URL && process.env.LINDY_WEBHOOK_SECRET) {
+      const lindy = await fetchFromLindy(companyName)
+      return mapLindyCompetitive(lindy, companyName)
+    }
+  } catch (e) {
+    console.log("Lindy competitive failed, falling back:", e)
+  }
 
-  // Try Parallel.ai first (PRIMARY)
+  // 2) Parallel.ai
   try {
     if (PARALLEL_API_KEY) {
-      console.log("Trying Parallel.ai competitive analysis (PRIMARY)...")
       return await fetchCompetitiveAnalysisFromParallelAI(companyName)
     }
-  } catch (error) {
-    console.log("Parallel.ai competitive analysis failed, trying OpenAI fallback:", error)
+  } catch (e) {
+    console.log("Parallel competitive failed, trying OpenAI:", e)
   }
 
-  // Try OpenAI second (FALLBACK)
+  // 3) OpenAI
   try {
     if (process.env.OPENAI_API_KEY) {
-      console.log("Trying OpenAI competitive analysis (FALLBACK)...")
       return await fetchCompetitiveAnalysisFromOpenAI(companyName)
     }
-  } catch (error) {
-    console.log("OpenAI competitive analysis fallback failed, using sample data:", error)
+  } catch (e) {
+    console.log("OpenAI competitive failed, using sample:", e)
   }
 
-  // Final fallback to sample data
-  console.log("All competitive analysis APIs failed, using sample data")
+  // 4) Sample
   return getSampleCompetitiveData(companyName)
 }
 
@@ -90,47 +103,7 @@ async function fetchCompanyIntelFromParallelAI(companyName: string): Promise<Com
         headquarters: { type: "string" },
       },
     },
-    input: `Extract comprehensive company intelligence for ${companyName}. Provide detailed, accurate, and current information including:
-
-BASIC COMPANY INFORMATION:
-- Company name, location, and headquarters
-- Industry classification and business description
-- Number of employees and company size
-- Founded date and company history
-
-FINANCIAL DATA:
-- Current revenue and financial performance
-- Market capitalization and valuation
-- Funding history and investment rounds
-- Profit margins and financial health
-
-LEADERSHIP & GOVERNANCE:
-- CEO and chairman information
-- Key leadership team members and executives
-- Board of directors and governance structure
-- Recent leadership changes
-
-BUSINESS OPERATIONS:
-- Main products and services offered
-- Key business segments and revenue streams
-- Recent product launches and innovations
-- Company vision, mission, and core values
-
-MARKET POSITION:
-- Main competitors and competitive landscape
-- Market share and positioning
-- Geographic presence and markets served
-- Customer base and target markets
-
-STRATEGIC ANALYSIS:
-- Company strengths and competitive advantages
-- Weaknesses and operational challenges
-- Market opportunities for growth
-- Potential threats and risks
-- Recent news and developments
-- Key investors and stakeholders
-
-Please provide accurate, up-to-date information from reliable sources and structure the response clearly.`,
+    input: `Extract comprehensive company intelligence for ${companyName}. Provide detailed, accurate, and current information.`,
     processor: "base",
   }
 
@@ -149,15 +122,9 @@ Please provide accurate, up-to-date information from reliable sources and struct
 
   const result = await response.json()
   const runId = result.run_id
+  if (!runId) throw new Error("No run ID returned from Parallel API")
 
-  if (!runId) {
-    throw new Error("No run ID returned from Parallel API")
-  }
-
-  // Poll for results
   const taskResult = await pollForResults(runId)
-
-  // Process the structured response from Parallel.ai
   return processParallelAIResult(taskResult, companyName)
 }
 
@@ -212,38 +179,7 @@ async function fetchCompetitiveAnalysisFromParallelAI(companyName: string): Prom
         recommendations: { type: "array", items: { type: "string" } },
       },
     },
-    input: `Provide comprehensive competitive analysis for ${companyName}. Include detailed information about:
-
-MARKET ANALYSIS:
-- Total addressable market size and value
-- Market growth rate and projections
-- Key industry trends and developments
-- Barriers to entry and market dynamics
-
-COMPETITOR IDENTIFICATION & ANALYSIS:
-- Top 5-7 main competitors with market share data
-- Detailed strengths and weaknesses of each competitor
-- Key products and services offered by competitors
-- Competitive advantages and differentiation strategies
-- Threat level assessment (High/Medium/Low) for each competitor
-
-COMPETITIVE POSITIONING:
-- Market leaders, challengers, followers, and niche players
-- Where ${companyName} fits in the competitive landscape
-- Market positioning and differentiation strategies
-
-SWOT ANALYSIS for ${companyName}:
-- Key strengths and competitive advantages
-- Weaknesses and areas for improvement
-- Market opportunities for growth and expansion
-- Potential threats and competitive risks
-
-STRATEGIC RECOMMENDATIONS:
-- Actionable recommendations for competitive advantage
-- Strategic initiatives to strengthen market position
-- Areas for investment and development
-
-Please provide current, accurate data from reliable sources and structure the analysis clearly.`,
+    input: `Provide comprehensive competitive analysis for ${companyName}.`,
     processor: "base",
   }
 
@@ -262,10 +198,7 @@ Please provide current, accurate data from reliable sources and structure the an
 
   const result = await response.json()
   const runId = result.run_id
-
-  if (!runId) {
-    throw new Error("No run ID returned from Parallel API")
-  }
+  if (!runId) throw new Error("No run ID returned from Parallel API")
 
   const taskResult = await pollForResults(runId)
   return processCompetitiveAnalysisResult(taskResult, companyName)
@@ -303,12 +236,11 @@ async function pollForResults(runId: string, maxAttempts = 30): Promise<any> {
 }
 
 function processParallelAIResult(result: any, companyName: string): CompanyIntel {
-  // Process structured JSON response from Parallel.ai
   return {
     companyName: result.company_name || companyName,
     location: result.location || result.headquarters || "N/A",
     oneLiner: result.description || "N/A",
-    positionTitle: "Market Position", // Can be enhanced based on result
+    positionTitle: "Market Position",
     industry: result.industry || "N/A",
     numberOfEmployees: result.employees || "N/A",
     funding: result.funding || "N/A",
@@ -343,7 +275,6 @@ function processParallelAIResult(result: any, companyName: string): CompanyIntel
 }
 
 function processCompetitiveAnalysisResult(result: any, companyName: string): any {
-  // Process structured JSON response from Parallel.ai
   return {
     main_company: result.main_company || companyName,
     competitors: result.competitors || [],
@@ -371,6 +302,7 @@ function processCompetitiveAnalysisResult(result: any, companyName: string): any
   }
 }
 
+// Existing sample data helpers (unchanged)
 function getSampleCompanyData(companyName: string): CompanyIntel {
   const normalizedName = companyName.toLowerCase().trim()
 
@@ -648,17 +580,7 @@ function getSampleCompetitiveData(companyName: string): any {
   // Default competitive analysis
   return {
     main_company: companyName,
-    competitors: [
-      {
-        name: "Competitor A",
-        market_share: "Market share data not available",
-        strengths: ["Strength 1", "Strength 2"],
-        weaknesses: ["Weakness 1", "Weakness 2"],
-        key_products: ["Product 1", "Product 2"],
-        competitive_advantage: "Competitive advantage not available",
-        threat_level: "Medium",
-      },
-    ],
+    competitors: [],
     market_analysis: {
       market_size: "Market size data not available",
       growth_rate: "Growth rate not available",
@@ -667,18 +589,18 @@ function getSampleCompetitiveData(companyName: string): any {
     },
     competitive_positioning: {
       market_leader: "Leader not identified",
-      market_challengers: ["Challenger 1"],
-      market_followers: ["Follower 1"],
-      niche_players: ["Niche Player 1"],
+      market_challengers: [],
+      market_followers: [],
+      niche_players: [],
     },
     swot_comparison: {
       [companyName]: {
-        strengths: ["Strength 1", "Strength 2"],
-        weaknesses: ["Weakness 1", "Weakness 2"],
-        opportunities: ["Opportunity 1", "Opportunity 2"],
-        threats: ["Threat 1", "Threat 2"],
+        strengths: [],
+        weaknesses: [],
+        opportunities: [],
+        threats: [],
       },
     },
-    recommendations: ["Recommendation 1", "Recommendation 2"],
+    recommendations: [],
   }
 }

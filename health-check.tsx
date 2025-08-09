@@ -18,11 +18,13 @@ export function HealthCheck() {
         openai: !!process.env.OPENAI_API_KEY,
         xai: !!process.env.XAI_API_KEY,
         parallel: !!process.env.PARALLEL_API_KEY,
+        lindy: !!process.env.LINDY_WEBHOOK_URL && !!process.env.LINDY_WEBHOOK_SECRET,
       },
       apis: {
         openai: false,
         xai: false,
         parallel: false,
+        lindy: false,
       },
     }
 
@@ -33,6 +35,20 @@ export function HealthCheck() {
         healthResults.apis.openai = response.ok
       } catch (error) {
         healthResults.apis.openai = false
+      }
+    }
+
+    // Test Lindy
+    if (process.env.LINDY_WEBHOOK_URL && process.env.LINDY_WEBHOOK_SECRET) {
+      try {
+        const res = await fetch("/api/lindy/trigger", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ company: "Apple", includeCompetitive: false }),
+        })
+        healthResults.apis.lindy = res.ok
+      } catch {
+        healthResults.apis.lindy = false
       }
     }
 
@@ -70,6 +86,14 @@ export function HealthCheck() {
               <AlertCircle className="h-3 w-3 mr-1" />
             )}
             Parallel {process.env.PARALLEL_API_KEY ? "✓" : "✗"}
+          </Badge>
+          <Badge variant={process.env.LINDY_WEBHOOK_URL && process.env.LINDY_WEBHOOK_SECRET ? "default" : "secondary"}>
+            {process.env.LINDY_WEBHOOK_URL && process.env.LINDY_WEBHOOK_SECRET ? (
+              <CheckCircle className="h-3 w-3 mr-1" />
+            ) : (
+              <AlertCircle className="h-3 w-3 mr-1" />
+            )}
+            Lindy {process.env.LINDY_WEBHOOK_URL && process.env.LINDY_WEBHOOK_SECRET ? "✓" : "✗"}
           </Badge>
         </div>
 
